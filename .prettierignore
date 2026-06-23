@@ -6,3 +6,4 @@ coverage
 *.lock
 package-lock.json
 src/components/ui
+src/lib/types/database.gen.ts

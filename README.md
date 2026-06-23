@@ -53,6 +53,24 @@ Auth) · Tailwind v4 · shadcn/ui · Geist · Framer Motion · Recharts · Verce
 | `npm run lint`         | ESLint                                  |
 | `npm run format`       | Prettier (incl. import + class sorting) |
 | `npm run format:check` | Check formatting without writing        |
+| `npm run db:types`     | Regenerate DB types from the live schema |
+
+## Database types
+
+`src/lib/types/database.gen.ts` is generated from the live Supabase schema;
+`src/lib/types/database.ts` is a thin alias layer (`Profile`, `Farm`, enums…)
+that the app imports — so regenerating can never break import sites.
+
+Regenerate after any schema/migration change:
+
+```bash
+export SUPABASE_ACCESS_TOKEN=…   # https://supabase.com/dashboard/account/tokens
+npm run db:types
+```
+
+(The project ref `ahfmyscxdncdubdpcvtu` is baked into the script. Until the token
+is supplied, the committed `.gen.ts` is a hand-authored stand-in that mirrors the
+migrations.)
 
 ## Deploying to Vercel
 
