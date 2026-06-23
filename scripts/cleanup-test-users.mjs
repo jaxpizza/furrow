@@ -10,7 +10,13 @@ const admin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-const PREFIXES = ["furrow.test.", "furrow.debug.", "furrow.ui."];
+const PREFIXES = [
+  "furrow.test.",
+  "furrow.debug.",
+  "furrow.ui.",
+  "furrow.fields.",
+  "furrow.geom.",
+];
 let removed = 0;
 
 for (let page = 1; ; page++) {
