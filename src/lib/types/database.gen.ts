@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      basis_entries: {
+        Row: {
+          basis_cents: number
+          crop: Database["public"]["Enums"]["crop"]
+          elevator_name: string | null
+          farm_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          basis_cents: number
+          crop: Database["public"]["Enums"]["crop"]
+          elevator_name?: string | null
+          farm_id: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          basis_cents?: number
+          crop?: Database["public"]["Enums"]["crop"]
+          elevator_name?: string | null
+          farm_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "basis_entries_farm_id_fkey"
+            columns: ["farm_id"]
+            isOneToOne: false
+            referencedRelation: "farms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       elevator_basis: {
         Row: {
           basis: number | null
@@ -301,6 +336,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      market_history_cache: {
+        Row: {
+          as_of: string
+          fetched_at: string
+          points: Json
+          source: string
+          symbol: string
+        }
+        Insert: {
+          as_of: string
+          fetched_at?: string
+          points: Json
+          source?: string
+          symbol: string
+        }
+        Update: {
+          as_of?: string
+          fetched_at?: string
+          points?: Json
+          source?: string
+          symbol?: string
+        }
+        Relationships: []
+      }
+      market_outlook_cache: {
+        Row: {
+          crop: Database["public"]["Enums"]["crop"]
+          factors: Json
+          generated_at: string
+          model: string
+          signal: string
+          summary: string
+        }
+        Insert: {
+          crop: Database["public"]["Enums"]["crop"]
+          factors: Json
+          generated_at?: string
+          model: string
+          signal: string
+          summary: string
+        }
+        Update: {
+          crop?: Database["public"]["Enums"]["crop"]
+          factors?: Json
+          generated_at?: string
+          model?: string
+          signal?: string
+          summary?: string
+        }
+        Relationships: []
+      }
+      market_quote_cache: {
+        Row: {
+          as_of: string
+          currency: string
+          fetched_at: string
+          price: number
+          source: string
+          symbol: string
+        }
+        Insert: {
+          as_of: string
+          currency?: string
+          fetched_at?: string
+          price: number
+          source?: string
+          symbol: string
+        }
+        Update: {
+          as_of?: string
+          currency?: string
+          fetched_at?: string
+          price?: number
+          source?: string
+          symbol?: string
+        }
+        Relationships: []
       }
       plantings: {
         Row: {

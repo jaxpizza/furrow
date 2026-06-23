@@ -16,6 +16,7 @@ const PREFIXES = [
   "furrow.ui.",
   "furrow.fields.",
   "furrow.geom.",
+  "furrow.markets.",
 ];
 let removed = 0;
 
