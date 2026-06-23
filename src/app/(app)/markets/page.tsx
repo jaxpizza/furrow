@@ -50,8 +50,27 @@ export default async function MarketsPage({
     cashProvider.getCashPrice(crop, activeFarm.id),
     getOutlook(crop, now),
   ]);
-  const delta = deltaFromHistory(history);
-  const sampleData = history.source === "sample";
+  // The futures quote (cash card / strip) and the chart history have separate
+  // sources on the free tier: corn quote is live (15-min delayed), corn history
+  // is premium → sample. Badge each honestly.
+  const futuresSource = cash.futuresRef!.source;
+  const chartSample = history.source === "sample";
+
+  // Prefer the live day-change from the quote feed; fall back to history.
+  const fr = cash.futuresRef!;
+  const delta =
+    fr.changePercent != null
+      ? {
+          change: fr.change ?? 0,
+          pct: fr.changePercent,
+          direction:
+            (fr.change ?? 0) > 0.0001
+              ? ("up" as const)
+              : (fr.change ?? 0) < -0.0001
+                ? ("down" as const)
+                : ("flat" as const),
+        }
+      : deltaFromHistory(history);
 
   const nextMonths = contractMonths(symbol, now)
     .slice(1)
@@ -77,8 +96,7 @@ export default async function MarketsPage({
           futuresPrice={cash.futuresRef!.price}
           contractMonth={cash.futuresRef!.contractMonth}
           asOf={cash.futuresRef!.asOf}
-          stale={cash.futuresRef!.stale}
-          sampleData={sampleData}
+          source={futuresSource}
           delta={delta}
         />
 
@@ -89,13 +107,13 @@ export default async function MarketsPage({
           pct={delta.pct}
           direction={delta.direction}
           nextMonths={nextMonths}
-          sampleData={sampleData}
+          source={futuresSource}
         />
 
         <ChartCard
           cropLabel={CROP_LABEL[crop]}
           points={history.points}
-          sampleData={sampleData}
+          sampleData={chartSample}
         />
 
         <OutlookCard outlook={outlook} />

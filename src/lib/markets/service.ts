@@ -22,6 +22,15 @@ const provider: PriceProvider = new ApiNinjasPriceProvider();
  * blank: honors the rotating free tier by serving the last-known value with its
  * timestamp.
  */
+// The day-change isn't in the quote cache table, so remember the last live
+// change per symbol in-process. This keeps the delta consistent (the real
+// feed's change) on cache-hits within the 15-min window, instead of flipping to
+// a history-derived value.
+const changeMem = new Map<
+  Symbol,
+  { change?: number; changePercent?: number }
+>();
+
 export async function getFuturesQuote(
   symbol: Symbol,
   now: Date,
@@ -32,6 +41,7 @@ export async function getFuturesQuote(
       symbol,
       price: cached.price,
       currency: cached.currency,
+      ...changeMem.get(symbol),
       asOf: cached.as_of,
       stale: false,
       source: cached.source,
@@ -48,6 +58,10 @@ export async function getFuturesQuote(
       fetched_at: now.toISOString(),
       source: live.source,
     });
+    changeMem.set(symbol, {
+      change: live.change,
+      changePercent: live.changePercent,
+    });
     return live;
   }
 
@@ -56,6 +70,7 @@ export async function getFuturesQuote(
       symbol,
       price: cached.price,
       currency: cached.currency,
+      ...changeMem.get(symbol),
       asOf: cached.as_of,
       stale: true, // serving last-known because the live fetch was unavailable
       source: cached.source,

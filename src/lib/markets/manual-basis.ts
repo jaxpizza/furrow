@@ -37,6 +37,9 @@ export class ManualBasisCashProvider implements CashBidProvider {
       contractMonth: formatContractMonth(front),
       asOf: quote.asOf,
       stale: quote.stale,
+      source: quote.source,
+      change: quote.change,
+      changePercent: quote.changePercent,
     };
 
     const stored = await readBasis(farmId, crop);

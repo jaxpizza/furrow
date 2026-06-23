@@ -56,18 +56,44 @@ export class ApiNinjasPriceProvider implements PriceProvider {
     const name = SYMBOL_TO_NINJAS_NAME[symbol];
     const data = (await this.get(`/commodityprice?name=${name}`)) as {
       price?: number | string;
+      currency_unit?: string;
+      change_24h?: number | string;
+      change_24h_percent?: number | string;
+      previous_close?: number | string;
       updated?: number;
     } | null;
     if (!data || data.price == null) return null;
-    const price = Number(data.price);
+
+    // CME grains quote in US cents (currency_unit "USX"). Convert cents → $/bu.
+    const toDollars = (v: number) =>
+      data.currency_unit === "USX" ? v / 100 : v;
+
+    const price = toDollars(Number(data.price));
     if (!Number.isFinite(price)) return null;
+
+    const change =
+      data.change_24h != null ? toDollars(Number(data.change_24h)) : undefined;
+    const changePercent =
+      data.change_24h_percent != null
+        ? Number(data.change_24h_percent)
+        : undefined;
+    const prevClose =
+      data.previous_close != null
+        ? toDollars(Number(data.previous_close))
+        : undefined;
     const asOf = data.updated
       ? new Date(data.updated * 1000).toISOString()
       : new Date().toISOString();
+
     return {
       symbol,
       price,
       currency: "USD",
+      change: Number.isFinite(change as number) ? change : undefined,
+      changePercent: Number.isFinite(changePercent as number)
+        ? changePercent
+        : undefined,
+      prevClose: Number.isFinite(prevClose as number) ? prevClose : undefined,
       asOf,
       stale: false,
       source: this.name,

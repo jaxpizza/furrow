@@ -11,9 +11,13 @@ export type PricePoint = { time: string; value: number };
 
 export type Quote = {
   symbol: Symbol;
-  /** Front-month futures price, $/bushel. */
+  /** Front-month futures price, $/bushel (converted from the vendor's unit). */
   price: number;
   currency: string;
+  /** Day change in $/bushel, when the feed provides it (history is premium). */
+  change?: number;
+  changePercent?: number;
+  prevClose?: number;
   /** When the underlying data is "as of" (provider timestamp). */
   asOf: string;
   /** True when we're serving a cached value because a fresh fetch failed/was
@@ -60,6 +64,10 @@ export type CashPrice = {
     contractMonth: string;
     asOf: string;
     stale: boolean;
+    source: string;
+    /** day change in $/bushel from the live feed, when available */
+    change?: number;
+    changePercent?: number;
   } | null;
   /** which source produced the cash number — 'manual-basis' | (later) 'barchart' */
   source: string;

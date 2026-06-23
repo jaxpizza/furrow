@@ -8,7 +8,7 @@ export function FuturesStrip({
   pct,
   direction,
   nextMonths,
-  sampleData,
+  source,
 }: {
   frontMonth: string;
   frontPrice: number;
@@ -16,7 +16,7 @@ export function FuturesStrip({
   pct: number;
   direction: Direction;
   nextMonths: string[];
-  sampleData: boolean;
+  source: string;
 }) {
   return (
     <Card className="flex flex-col p-5">
@@ -24,9 +24,13 @@ export function FuturesStrip({
         <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
           Futures
         </span>
-        {sampleData && (
+        {source === "sample" ? (
           <span className="rounded bg-[var(--accent)]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
             SAMPLE
+          </span>
+        ) : (
+          <span className="text-text-tertiary rounded bg-bg-elevated px-1.5 py-0.5 text-[10px] font-medium">
+            15-MIN DELAYED
           </span>
         )}
       </div>

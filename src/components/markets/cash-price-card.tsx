@@ -36,8 +36,7 @@ export function CashPriceCard({
   futuresPrice,
   contractMonth,
   asOf,
-  stale,
-  sampleData,
+  source,
   delta,
 }: {
   crop: Crop;
@@ -50,10 +49,11 @@ export function CashPriceCard({
   futuresPrice: number;
   contractMonth: string;
   asOf: string;
-  stale: boolean;
-  sampleData: boolean;
+  /** futures source: 'api-ninjas' (live, 15-min delayed) | 'sample' */
+  source: string;
   delta: { change: number; pct: number; direction: Direction };
 }) {
+  const isSample = source === "sample";
   const [editing, setEditing] = useState(false);
 
   return (
@@ -67,14 +67,13 @@ export function CashPriceCard({
               <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
                 Cash Price · {cropLabel} · Central IL
               </span>
-              {sampleData && (
+              {isSample ? (
                 <span className="rounded bg-[var(--accent)]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
                   SAMPLE
                 </span>
-              )}
-              {stale && !sampleData && (
+              ) : (
                 <span className="text-text-tertiary rounded bg-bg-elevated px-1.5 py-0.5 text-[10px] font-medium">
-                  DELAYED
+                  15-MIN DELAYED
                 </span>
               )}
             </div>
