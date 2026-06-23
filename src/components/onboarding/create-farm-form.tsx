@@ -37,21 +37,25 @@ export function CreateFarmForm({
     if (!name.trim()) return;
     setPending(true);
 
+    // Generate the id client-side so we don't need an INSERT ... RETURNING.
+    // A farm's owner-membership is created by an AFTER INSERT trigger, which
+    // runs *after* the RLS SELECT check on a RETURNING row — so `.select()`
+    // here would fail the farms read policy. Inserting with a known id sidesteps
+    // that ordering entirely.
+    const id = crypto.randomUUID();
     const supabase = createClient();
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("farms")
-      .insert({ name: name.trim(), state, owner_id: userId })
-      .select("id")
-      .single();
+      .insert({ id, name: name.trim(), state, owner_id: userId });
 
-    if (error || !data) {
-      toast.error(error?.message ?? "Could not create the farm.");
+    if (error) {
+      toast.error(error.message ?? "Could not create the farm.");
       setPending(false);
       return;
     }
 
     // Make the new farm active, then land on the dashboard.
-    setBrowserCookie(ACTIVE_FARM_COOKIE, data.id);
+    setBrowserCookie(ACTIVE_FARM_COOKIE, id);
     toast.success(`${name.trim()} is ready.`);
     router.push("/dashboard");
     router.refresh();
