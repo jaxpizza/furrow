@@ -10,6 +10,7 @@ import { CurrentConditionsCard } from "@/components/weather/current-conditions";
 import { FieldSelector } from "@/components/weather/field-selector";
 import { ForecastCard } from "@/components/weather/forecast-card";
 import { GddCard } from "@/components/weather/gdd-card";
+import { GrowingSeasonCard } from "@/components/weather/growing-season-card";
 import { RainfallCard } from "@/components/weather/rainfall-card";
 import { SoilCard } from "@/components/weather/soil-card";
 import { StressFlagsCard } from "@/components/weather/stress-flags";
@@ -100,6 +101,7 @@ export default async function WeatherPage({
           fieldwork={wx.fieldwork}
         />
         <StressFlagsCard stress={wx.stress} />
+        <GrowingSeasonCard season={wx.growingSeason} />
       </div>
 
       <WeatherAttribution />

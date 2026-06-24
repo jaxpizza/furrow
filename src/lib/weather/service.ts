@@ -4,6 +4,7 @@ import { getActuals } from "./actuals";
 import {
   cellKey,
   cornGdd,
+  formatOrdinal,
   ORD_MAY1,
   ordinalOfDate,
   percentileOf,
@@ -171,6 +172,9 @@ export async function getWeatherDashboard(
     }
 
     const ytdIn = arun;
+    const past7In = actuals.precip
+      .slice(-7)
+      .reduce<number>((s, p) => s + (p ?? 0), 0);
     const normalIn = normalCum[todayOrd0] ?? 0;
     const deltaIn = ytdIn - normalIn;
     const samples = normals.yearlyCumPrecip
@@ -183,6 +187,7 @@ export async function getWeatherDashboard(
 
     rainfall = {
       ytdIn,
+      past7In,
       normalIn,
       deltaIn,
       percentile,
@@ -223,6 +228,19 @@ export async function getWeatherDashboard(
     };
   }
 
+  // ── growing season (average frost-free window, from the normals) ────────
+  let growingSeason: WeatherDashboard["growingSeason"] = null;
+  if (normals && normals.frostSpringOrd && normals.frostFallOrd) {
+    growingSeason = {
+      springFrost: formatOrdinal(normals.frostSpringOrd),
+      fallFrost: formatOrdinal(normals.frostFallOrd),
+      springOrd: normals.frostSpringOrd,
+      fallOrd: normals.frostFallOrd,
+      frostFreeDays: normals.frostFallOrd - normals.frostSpringOrd,
+      todayOrd: ordinalOfDate(today),
+    };
+  }
+
   // ── fieldwork window: longest near-term dry run ─────────────────────────
   const fieldwork = bestDryWindow(dWindow);
 
@@ -235,6 +253,7 @@ export async function getWeatherDashboard(
     rainfall,
     gdd,
     soil,
+    growingSeason,
     daily,
     hourly,
     fieldwork,

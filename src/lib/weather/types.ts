@@ -31,6 +31,7 @@ export type RainPoint = {
 
 export type RainfallRead = {
   ytdIn: number;
+  past7In: number; // precipitation over the most recent 7 days
   normalIn: number;
   deltaIn: number; // actual − normal (negative = deficit)
   percentile: number; // 0-1 vs the 30-yr distribution
@@ -91,12 +92,22 @@ export type StressFlag = {
   text: string;
 };
 
+export type GrowingSeason = {
+  springFrost: string; // "Apr 22"
+  fallFrost: string; // "Oct 18"
+  springOrd: number;
+  fallOrd: number;
+  frostFreeDays: number;
+  todayOrd: number;
+};
+
 export type WeatherDashboard = {
   location: WeatherLocation;
   current: CurrentConditions | null;
   rainfall: RainfallRead | null;
   gdd: GddRead | null;
   soil: SoilRead | null;
+  growingSeason: GrowingSeason | null;
   daily: ForecastDay[];
   hourly: HourPoint[];
   fieldwork: FieldworkWindow;

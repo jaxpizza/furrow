@@ -2,6 +2,10 @@ import { Card } from "@/components/ui/card";
 import { Delta } from "@/components/common/delta";
 import type { GddRead } from "@/lib/weather/types";
 
+import { Explainer } from "./explainer";
+
+const CORN_MATURITY = 2700;
+
 export function GddCard({ gdd }: { gdd: GddRead | null }) {
   if (!gdd) {
     return (
@@ -61,6 +65,29 @@ export function GddCard({ gdd }: { gdd: GddRead | null }) {
         <span>Since {gdd.seasonStart} · corn, base 50°F</span>
         <span className="tnum">normal {gdd.normal.toLocaleString()}</span>
       </div>
+
+      {/* plain-language, always visible */}
+      <p className="text-text-secondary mt-3 text-xs leading-relaxed">
+        Heat units the crop has banked since {gdd.seasonStart}. Corn needs about{" "}
+        <span className="tnum text-foreground">
+          {CORN_MATURITY.toLocaleString()}
+        </span>{" "}
+        to reach maturity — roughly{" "}
+        <span className="tnum text-foreground">
+          {Math.round((gdd.accumulated / CORN_MATURITY) * 100)}%
+        </span>{" "}
+        of the way.
+      </p>
+
+      <Explainer>
+        Crops develop on accumulated heat, not the calendar. Each day adds GDD =
+        the day&apos;s average temperature minus 50°F, using the corn method that
+        caps highs at 86°F and floors lows at 50°F (corn barely grows outside
+        that range). Rough milestones: emergence ~100–120 GDD, knee-high ~600,
+        tasseling ~1,200–1,400, and black-layer (physiological maturity) near{" "}
+        {CORN_MATURITY.toLocaleString()}. &quot;Ahead&quot; or &quot;behind&quot;
+        compares this year&apos;s pace to the 1991–2020 normal for the same dates.
+      </Explainer>
     </Card>
   );
 }

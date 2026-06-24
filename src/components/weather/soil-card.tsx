@@ -5,6 +5,8 @@ import { Delta } from "@/components/common/delta";
 import type { SoilRead } from "@/lib/weather/types";
 import { cn } from "@/lib/utils";
 
+import { Explainer } from "./explainer";
+
 export function SoilCard({ soil }: { soil: SoilRead | null }) {
   if (!soil) {
     return (
@@ -72,6 +74,15 @@ export function SoilCard({ soil }: { soil: SoilRead | null }) {
           Informational — not planting advice.
         </p>
       </div>
+
+      <Explainer>
+        Corn seed needs soil around 50°F to germinate evenly; planted into colder
+        ground it sits, swells, and is exposed to disease and chilling injury.
+        This reads the temperature ~2.4 in down (planting depth). &quot;Rising&quot;
+        means the trend over the last 5 days is warming toward that window —
+        many growers watch for soil at 50°F and a warm forecast ahead. It&apos;s
+        context, not a signal to plant.
+      </Explainer>
     </Card>
   );
 }

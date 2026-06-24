@@ -20,6 +20,27 @@ export function ordinalOfDate(iso: string): number {
 }
 
 export const ORD_MAY1 = ordinal(5, 1);
+export const ORD_JUL1 = ordinal(7, 1);
+export const ORD_AUG1 = ordinal(8, 1);
+
+const MONTH_ABBR = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/** Inverse of `ordinal` → { month (1-12), day }. */
+export function ordinalToMonthDay(ord: number): { month: number; day: number } {
+  const o = Math.max(1, Math.min(365, Math.round(ord)));
+  let m = 11;
+  for (let i = 0; i < 12; i++) if (o > MONTH_OFFSET[i]) m = i;
+  return { month: m + 1, day: o - MONTH_OFFSET[m] };
+}
+
+/** "Apr 22" style label from a canonical ordinal. */
+export function formatOrdinal(ord: number): string {
+  const { month, day } = ordinalToMonthDay(ord);
+  return `${MONTH_ABBR[month - 1]} ${day}`;
+}
 
 /**
  * Modified growing degree day for corn: base 50°F, both bounds clamped to

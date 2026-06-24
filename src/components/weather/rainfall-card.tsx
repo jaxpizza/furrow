@@ -4,6 +4,7 @@ import type { RainSeverity } from "@/lib/weather/calc";
 import type { RainfallRead } from "@/lib/weather/types";
 import { cn } from "@/lib/utils";
 
+import { Explainer } from "./explainer";
 import { RainChart } from "./rain-chart";
 
 const SCALE: { key: RainSeverity; label: string }[] = [
@@ -66,6 +67,14 @@ export function RainfallCard({ rainfall }: { rainfall: RainfallRead | null }) {
             </span>
           </div>
         </div>
+
+        {/* recent rain — the dry/wet pulse */}
+        <div className="text-right">
+          <div className="tnum text-foreground text-lg font-semibold">
+            {rainfall.past7In.toFixed(1)}″
+          </div>
+          <div className="text-text-tertiary text-[11px]">past 7 days</div>
+        </div>
       </div>
 
       {/* severity scale — position + label, not color alone */}
@@ -95,10 +104,28 @@ export function RainfallCard({ rainfall }: { rainfall: RainfallRead | null }) {
       </div>
 
       <p className="text-foreground mt-3 text-sm">
-        <span className="font-medium">{rainfall.headline}.</span>
+        <span className="font-medium">{rainfall.headline}.</span>{" "}
+        <span className="text-text-secondary">
+          Wetter than about{" "}
+          <span className="tnum text-foreground">
+            {Math.round(rainfall.percentile * 30)}
+          </span>{" "}
+          of the last 30 years to this date.
+        </span>
       </p>
 
-      <div className="mt-2">
+      <Explainer>
+        We add up every drop of rain since Jan 1 and compare it to the same
+        Jan 1–today window in each of the 30 years from 1991–2020. The{" "}
+        {Math.round(rainfall.percentile * 100)}
+        th percentile means this year is wetter than{" "}
+        {Math.round(rainfall.percentile * 100)}% of those years so far —
+        50th is dead-on typical, low numbers mean a dry year building, high
+        numbers a wet one. The dashed line on the chart is that 30-year normal;
+        the amber line is this year.
+      </Explainer>
+
+      <div className="mt-3">
         <RainChart series={rainfall.series} />
       </div>
     </Card>
