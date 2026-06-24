@@ -1,21 +1,15 @@
 import "server-only";
 
-import { createServerClient } from "@supabase/ssr";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import type { Json } from "@/lib/types/database.gen";
 
 /**
- * Untyped service-role client for the weather caches added in 0004 (the
- * generated types predate that migration). Once `npm run db:types` is re-run
- * post-0004, swap this for the typed `createServiceRoleClient()` and drop the
- * row casts below — same pattern as the market caches. Everything is wrapped in
- * try/catch so the app degrades gracefully if 0004 hasn't been applied.
+ * Service-role client for the global weather caches (RLS-enabled, no policies —
+ * only the service role can touch them). Reads/writes are wrapped in try/catch
+ * so a transient error degrades gracefully to a live re-fetch. Payloads are
+ * stored as jsonb, so reads narrow `Json` to the caller's type.
  */
-function weatherDb() {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } },
-  );
-}
+const weatherDb = createServiceRoleClient;
 
 export const FORECAST_TTL_MS = 8 * 60 * 60 * 1000; // ~3x/day
 export const ACTUALS_TTL_MS = 12 * 60 * 60 * 1000; // daily
@@ -35,7 +29,7 @@ export async function readForecastCache<T>(key: string): Promise<CacheHit<T>> {
       .eq("cell_key", key)
       .maybeSingle();
     if (!data) return null;
-    return { payload: data.payload as T, ts: data.fetched_at as string };
+    return { payload: data.payload as unknown as T, ts: data.fetched_at as string };
   } catch {
     return null;
   }
@@ -45,7 +39,11 @@ export async function writeForecastCache(key: string, payload: unknown) {
   try {
     await weatherDb()
       .from("weather_forecast_cache")
-      .upsert({ cell_key: key, payload, fetched_at: new Date().toISOString() });
+      .upsert({
+        cell_key: key,
+        payload: payload as Json,
+        fetched_at: new Date().toISOString(),
+      });
   } catch {
     /* cache unavailable — ignore */
   }
@@ -59,7 +57,7 @@ export async function readNormalsCache<T>(key: string): Promise<CacheHit<T>> {
       .eq("cell_key", key)
       .maybeSingle();
     if (!data) return null;
-    return { payload: data.payload as T, ts: data.computed_at as string };
+    return { payload: data.payload as unknown as T, ts: data.computed_at as string };
   } catch {
     return null;
   }
@@ -71,7 +69,7 @@ export async function writeNormalsCache(key: string, payload: unknown) {
       .from("weather_normals_cache")
       .upsert({
         cell_key: key,
-        payload,
+        payload: payload as Json,
         computed_at: new Date().toISOString(),
       });
   } catch {
@@ -91,7 +89,7 @@ export async function readActualsCache<T>(
       .eq("year", year)
       .maybeSingle();
     if (!data) return null;
-    return { payload: data.payload as T, ts: data.fetched_at as string };
+    return { payload: data.payload as unknown as T, ts: data.fetched_at as string };
   } catch {
     return null;
   }
@@ -108,7 +106,7 @@ export async function writeActualsCache(
       .upsert({
         cell_key: key,
         year,
-        payload,
+        payload: payload as Json,
         fetched_at: new Date().toISOString(),
       });
   } catch {

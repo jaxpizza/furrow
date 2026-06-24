@@ -468,6 +468,63 @@ export type Database = {
         }
         Relationships: []
       }
+      weather_actuals_cache: {
+        Row: {
+          cell_key: string
+          fetched_at: string
+          payload: Json
+          year: number
+        }
+        Insert: {
+          cell_key: string
+          fetched_at?: string
+          payload: Json
+          year: number
+        }
+        Update: {
+          cell_key?: string
+          fetched_at?: string
+          payload?: Json
+          year?: number
+        }
+        Relationships: []
+      }
+      weather_forecast_cache: {
+        Row: {
+          cell_key: string
+          fetched_at: string
+          payload: Json
+        }
+        Insert: {
+          cell_key: string
+          fetched_at?: string
+          payload: Json
+        }
+        Update: {
+          cell_key?: string
+          fetched_at?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
+      weather_normals_cache: {
+        Row: {
+          cell_key: string
+          computed_at: string
+          payload: Json
+        }
+        Insert: {
+          cell_key: string
+          computed_at?: string
+          payload: Json
+        }
+        Update: {
+          cell_key?: string
+          computed_at?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
