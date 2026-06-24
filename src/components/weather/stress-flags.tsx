@@ -8,7 +8,7 @@ const ICON = { heat: Flame, freeze: Snowflake, heavy_rain: CloudRain };
 
 export function StressFlagsCard({ stress }: { stress: StressFlag[] }) {
   return (
-    <Card className="flex flex-col p-5 md:col-span-2">
+    <Card className="flex flex-col p-5">
       <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
         Stress Flags · 14-day
       </span>

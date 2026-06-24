@@ -67,11 +67,14 @@ export function GrowingSeasonCard({
       </p>
 
       <Explainer>
-        Averaged from the daily lows over 1991–2020: the last spring date and
-        first fall date the overnight low typically reaches 32°F. Frost can still
-        land earlier or later in any given year — these are the long-run norms
-        that bracket the corn season (planting after the spring date, maturity
-        before the fall date). The amber tick is today.
+        Averaged over 1991–2020: the last spring date and first fall date the
+        overnight low typically reaches 36°F. We use 36°F, not 32°F, because
+        frost forms on the ground and crop canopy on calm clear nights when the
+        surface cools several degrees below the air temperature — 36°F at gauge
+        height lines up with the long-run frost climatology for this area. Frost
+        can still land earlier or later in any given year; these norms bracket
+        the corn season (plant after the spring date, reach maturity before the
+        fall date). The amber tick is today.
       </Explainer>
     </Card>
   );

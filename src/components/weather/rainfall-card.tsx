@@ -71,9 +71,9 @@ export function RainfallCard({ rainfall }: { rainfall: RainfallRead | null }) {
         {/* recent rain — the dry/wet pulse */}
         <div className="text-right">
           <div className="tnum text-foreground text-lg font-semibold">
-            {rainfall.past7In.toFixed(1)}″
+            {rainfall.past14In.toFixed(1)}″
           </div>
-          <div className="text-text-tertiary text-[11px]">past 7 days</div>
+          <div className="text-text-tertiary text-[11px]">past 14 days</div>
         </div>
       </div>
 

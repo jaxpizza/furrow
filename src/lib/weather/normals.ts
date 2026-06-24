@@ -15,12 +15,23 @@ export type Normals = {
   tmaxNormal: number[];
   tminNormal: number[];
   yearlyCumPrecip: number[][]; // [year][ordinal] cumulative precip (in)
-  // average frost dates (canonical ordinals) — last spring / first fall ≤ 32°F
+  // average frost dates (canonical ordinals)
   frostSpringOrd: number;
   frostFallOrd: number;
+  frostThreshold: number; // °F threshold used (cache-version marker)
 };
 
 const N = 365;
+
+/**
+ * Frost threshold (°F) applied to the ERA5 daily LOW. We use 36°F, not 32°F:
+ * frost forms on the ground/canopy on calm clear nights when it cools below the
+ * 2m air temperature, and the ERA5 grid-cell minimum runs a few degrees warmer
+ * than the coldest spots. Empirically, 36°F on the ERA5 low reproduces the
+ * station-based frost climatology (central IL ≈ last Apr 22 / first Oct 17,
+ * ~178 frost-free days); 32°F overstates the season by ~3-4 weeks.
+ */
+export const FROST_THRESHOLD_F = 36;
 
 /** Compute (or read cached) the 1991-2020 daily climatology for a cell. */
 export async function getNormals(
@@ -29,11 +40,12 @@ export async function getNormals(
   key: string,
 ): Promise<Normals | null> {
   const cached = await readNormalsCache<Normals>(key);
-  // Recompute if the cached payload predates the frost-date fields.
+  // Reuse cache only if fresh AND computed with the current frost threshold
+  // (recompute when the threshold or payload shape changes).
   if (
     cached &&
     isFresh(cached.ts, NORMALS_TTL_MS) &&
-    cached.payload.frostSpringOrd != null
+    cached.payload.frostThreshold === FROST_THRESHOLD_F
   ) {
     return cached.payload;
   }
@@ -100,18 +112,19 @@ export async function getNormals(
     return cum;
   });
 
-  // average frost dates: per year, last spring low ≤ 32°F (before Jul) and the
-  // first fall low ≤ 32°F (from Aug), then average the ordinals across years.
+  // average frost dates: per year, last spring low ≤ threshold (before Jul) and
+  // the first fall low ≤ threshold (from Aug), then average across years.
   const springOrds: number[] = [];
   const fallOrds: number[] = [];
   for (const tmins of tminByYear.values()) {
     let spring = -1;
     for (let o = 0; o < ORD_JUL1 - 1 && o < N; o++) {
-      if (tmins[o] != null && (tmins[o] as number) <= 32) spring = o;
+      if (tmins[o] != null && (tmins[o] as number) <= FROST_THRESHOLD_F)
+        spring = o;
     }
     let fall = -1;
     for (let o = ORD_AUG1 - 1; o < N; o++) {
-      if (tmins[o] != null && (tmins[o] as number) <= 32) {
+      if (tmins[o] != null && (tmins[o] as number) <= FROST_THRESHOLD_F) {
         fall = o;
         break;
       }
@@ -129,6 +142,7 @@ export async function getNormals(
     yearlyCumPrecip,
     frostSpringOrd: avgOrd(springOrds),
     frostFallOrd: avgOrd(fallOrds),
+    frostThreshold: FROST_THRESHOLD_F,
   };
   await writeNormalsCache(key, normals);
   return normals;

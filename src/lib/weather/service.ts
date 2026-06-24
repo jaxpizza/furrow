@@ -50,7 +50,13 @@ export async function getWeatherDashboard(
     getNormals(lat, lon, key),
   ]);
 
-  const today = now.toISOString().slice(0, 10);
+  // Open-Meteo returns timestamps in the location's LOCAL time (timezone=auto),
+  // so align "now" to that local clock — otherwise the hourly strip and the
+  // "today" index are off by the UTC offset (~5-6h in the Corn Belt).
+  const offsetSec = forecast?.utc_offset_seconds ?? 0;
+  const localNow = new Date(now.getTime() + offsetSec * 1000);
+  const today = localNow.toISOString().slice(0, 10); // local date
+  const localNowHour = localNow.toISOString().slice(0, 13); // local "YYYY-MM-DDTHH"
 
   // ── current conditions ──────────────────────────────────────────────────
   let current: CurrentConditions | null = null;
@@ -100,8 +106,7 @@ export async function getWeatherDashboard(
   let soil: SoilRead | null = null;
   if (h?.time) {
     const ht = h.time as string[];
-    const nowIso = now.toISOString().slice(0, 13); // to the hour
-    let cur = ht.findIndex((x) => x.slice(0, 13) >= nowIso);
+    let cur = ht.findIndex((x) => x.slice(0, 13) >= localNowHour);
     if (cur < 0) cur = 0;
     for (let i = cur; i < Math.min(cur + 24, ht.length); i++) {
       hourly.push({
@@ -172,8 +177,8 @@ export async function getWeatherDashboard(
     }
 
     const ytdIn = arun;
-    const past7In = actuals.precip
-      .slice(-7)
+    const past14In = actuals.precip
+      .slice(-14)
       .reduce<number>((s, p) => s + (p ?? 0), 0);
     const normalIn = normalCum[todayOrd0] ?? 0;
     const deltaIn = ytdIn - normalIn;
@@ -187,7 +192,7 @@ export async function getWeatherDashboard(
 
     rainfall = {
       ytdIn,
-      past7In,
+      past14In,
       normalIn,
       deltaIn,
       percentile,

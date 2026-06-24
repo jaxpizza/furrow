@@ -91,17 +91,21 @@ export default async function WeatherPage({
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <CurrentConditionsCard current={wx.current} />
-        <SoilCard soil={wx.soil} />
+        <CurrentConditionsCard
+          current={wx.current}
+          lat={location.lat}
+          lon={location.lon}
+        />
         <RainfallCard rainfall={wx.rainfall} />
-        <GddCard gdd={wx.gdd} />
+        <SoilCard soil={wx.soil} />
         <ForecastCard
           daily={wx.daily}
           hourly={wx.hourly}
           fieldwork={wx.fieldwork}
         />
-        <StressFlagsCard stress={wx.stress} />
+        <GddCard gdd={wx.gdd} />
         <GrowingSeasonCard season={wx.growingSeason} />
+        <StressFlagsCard stress={wx.stress} />
       </div>
 
       <WeatherAttribution />

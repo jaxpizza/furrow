@@ -31,7 +31,7 @@ export type RainPoint = {
 
 export type RainfallRead = {
   ytdIn: number;
-  past7In: number; // precipitation over the most recent 7 days
+  past14In: number; // precipitation over the most recent 14 days
   normalIn: number;
   deltaIn: number; // actual − normal (negative = deficit)
   percentile: number; // 0-1 vs the 30-yr distribution

@@ -18,6 +18,9 @@ async function getJson(url: string): Promise<unknown | null> {
 }
 
 export type ForecastResponse = {
+  /** Seconds offset of the location's local time from UTC (timezone=auto). */
+  utc_offset_seconds?: number;
+  timezone?: string;
   current?: Record<string, number | string>;
   hourly?: Record<string, (number | string)[]>;
   daily?: Record<string, (number | string)[]>;
