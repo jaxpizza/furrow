@@ -1,4 +1,5 @@
 import {
+  CloudSun,
   LayoutDashboard,
   Map,
   Newspaper,
@@ -11,14 +12,15 @@ export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  /** Phase-1 placeholder section (renders an empty state). */
+  /** Placeholder section (renders a "coming soon" empty state). */
   placeholder?: boolean;
 };
 
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Fields", href: "/fields", icon: Map, placeholder: true },
-  { label: "Markets", href: "/markets", icon: TrendingUp, placeholder: true },
+  { label: "Fields", href: "/fields", icon: Map },
+  { label: "Markets", href: "/markets", icon: TrendingUp },
+  { label: "Weather", href: "/weather", icon: CloudSun },
   { label: "Inputs", href: "/inputs", icon: Sprout, placeholder: true },
   { label: "News", href: "/news", icon: Newspaper, placeholder: true },
 ];
