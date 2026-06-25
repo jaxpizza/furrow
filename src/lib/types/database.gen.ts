@@ -516,6 +516,39 @@ export type Database = {
         }
         Relationships: []
       }
+      news_items_cache: {
+        Row: {
+          crop_tags: Json
+          fetched_at: string
+          id: string
+          link: string
+          published_at: string | null
+          source: string
+          summary: string | null
+          title: string
+        }
+        Insert: {
+          crop_tags?: Json
+          fetched_at?: string
+          id?: string
+          link: string
+          published_at?: string | null
+          source: string
+          summary?: string | null
+          title: string
+        }
+        Update: {
+          crop_tags?: Json
+          fetched_at?: string
+          id?: string
+          link?: string
+          published_at?: string | null
+          source?: string
+          summary?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       plantings: {
         Row: {
           created_at: string
@@ -626,6 +659,39 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+        }
+        Relationships: []
+      }
+      usda_reports_cache: {
+        Row: {
+          crop: Database["public"]["Enums"]["crop"]
+          fetched_at: string
+          geography: string
+          id: string
+          payload: Json
+          period: string
+          report_type: string
+          source_url: string | null
+        }
+        Insert: {
+          crop: Database["public"]["Enums"]["crop"]
+          fetched_at?: string
+          geography: string
+          id?: string
+          payload: Json
+          period: string
+          report_type: string
+          source_url?: string | null
+        }
+        Update: {
+          crop?: Database["public"]["Enums"]["crop"]
+          fetched_at?: string
+          geography?: string
+          id?: string
+          payload?: Json
+          period?: string
+          report_type?: string
+          source_url?: string | null
         }
         Relationships: []
       }
