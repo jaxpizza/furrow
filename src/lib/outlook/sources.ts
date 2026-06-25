@@ -42,16 +42,26 @@ const SOY_RE = /\bsoybean|\bsoymeal\b|\bsoy oil\b|\bsoybeans\b|\bsoy\b/i;
 const MARKET_RE =
   /\bgrain\b|\bbushel|\bbasis\b|\bwasde\b|\bethanol\b|\bcrush\b|\bcbot\b|\bcme\b|\bexport|\bfutures\b|\byield\b|\bharvest|\bplant(?:ing|ed)\b|\bacreage\b|\bcrop (?:progress|condition|tour)\b|\bcommodit|\bcorn belt\b|\bnew crop\b|\bold crop\b|\bcarryout\b|\bstocks\b/i;
 
+// Grain words that rescue a "Grain & Livestock" roundup from the livestock filter.
+const GRAIN_RE =
+  /\bgrain\b|\bwheat\b|\bbushel|\bcorn belt\b|\bwasde\b|\bexport|\bacreage\b|\bethanol\b|\bcrop (?:progress|condition|tour)\b|\bnew crop\b|\bold crop\b/i;
+// Livestock-dominant items (cattle/hog futures roundups) are off-topic for a
+// corn/soybean outlook — drop them unless they also carry a grain signal.
+const LIVESTOCK_RE =
+  /\b(cattle|hogs?|lean hog|livestock|poultry|broiler|dairy|feeder|beef|pork|swine)\b/i;
+
 /** Returns the crop tags for an item, or null if it isn't grain-relevant. */
 export function classifyNews(title: string, summary: string): string[] | null {
   const text = `${title} ${summary}`;
   const tags: string[] = [];
   if (CORN_RE.test(text)) tags.push("corn");
   if (SOY_RE.test(text)) tags.push("soybean");
-  const marketRelevant = MARKET_RE.test(text);
-  if (tags.length === 0 && !marketRelevant) return null; // drop: not grain news
-  if (tags.length === 0) tags.push("grain"); // relevant but crop-agnostic
-  return tags;
+  if (tags.length > 0) return tags; // names a crop → always relevant
+
+  if (!MARKET_RE.test(text)) return null; // not grain-market news at all
+  // crop-agnostic but market-relevant → 'grain', unless it's livestock-only
+  if (LIVESTOCK_RE.test(text) && !GRAIN_RE.test(text)) return null;
+  return ["grain"];
 }
 
 /**

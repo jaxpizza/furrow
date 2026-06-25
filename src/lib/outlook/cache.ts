@@ -65,9 +65,9 @@ export async function newsLastFetched(): Promise<number | null> {
       .from("news_items_cache")
       .select("fetched_at")
       .order("fetched_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    return data?.fetched_at ? new Date(data.fetched_at).getTime() : null;
+      .limit(1);
+    const ts = data?.[0]?.fetched_at;
+    return ts ? new Date(ts).getTime() : null;
   } catch {
     return null;
   }
@@ -120,9 +120,9 @@ export async function reportsLastFetched(): Promise<number | null> {
       .from("usda_reports_cache")
       .select("fetched_at")
       .order("fetched_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    return data?.fetched_at ? new Date(data.fetched_at).getTime() : null;
+      .limit(1);
+    const ts = data?.[0]?.fetched_at;
+    return ts ? new Date(ts).getTime() : null;
   } catch {
     return null;
   }
