@@ -489,6 +489,33 @@ export type Database = {
         }
         Relationships: []
       }
+      market_outlook_v2: {
+        Row: {
+          corpus_hash: string
+          crop: Database["public"]["Enums"]["crop"]
+          generated_at: string
+          id: string
+          model: string
+          payload: Json
+        }
+        Insert: {
+          corpus_hash: string
+          crop: Database["public"]["Enums"]["crop"]
+          generated_at?: string
+          id?: string
+          model: string
+          payload: Json
+        }
+        Update: {
+          corpus_hash?: string
+          crop?: Database["public"]["Enums"]["crop"]
+          generated_at?: string
+          id?: string
+          model?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
       market_quote_cache: {
         Row: {
           as_of: string
