@@ -3,7 +3,7 @@ import { Snowflake } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { GrowingSeason } from "@/lib/weather/types";
 
-import { Explainer } from "./explainer";
+import { Explainer } from "@/components/common/explainer";
 
 export function GrowingSeasonCard({
   season,

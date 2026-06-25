@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import { TopBar } from "@/components/shell/top-bar";
+import { getUnreadAlertCount } from "@/lib/alerts/queries";
 import { ACTIVE_FARM_COOKIE } from "@/lib/constants";
 import { getSessionContext } from "@/lib/farm";
 
@@ -23,9 +24,11 @@ export default async function AppLayout({
   const activeFarmId =
     farms.find((f) => f.id === cookieFarm)?.id ?? farms[0].id;
 
+  const unreadAlerts = await getUnreadAlertCount(activeFarmId);
+
   return (
     <div className="flex min-h-dvh w-full">
-      <AppSidebar />
+      <AppSidebar unreadAlerts={unreadAlerts} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
           farms={farms}

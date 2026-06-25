@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      alert_state: {
+        Row: {
+          armed: boolean
+          farm_id: string
+          id: string
+          last_fired_at: string | null
+          last_threshold_price: number | null
+          target_id: string
+          threshold_type: Database["public"]["Enums"]["alert_threshold_type"]
+          updated_at: string
+        }
+        Insert: {
+          armed?: boolean
+          farm_id: string
+          id?: string
+          last_fired_at?: string | null
+          last_threshold_price?: number | null
+          target_id: string
+          threshold_type: Database["public"]["Enums"]["alert_threshold_type"]
+          updated_at?: string
+        }
+        Update: {
+          armed?: boolean
+          farm_id?: string
+          id?: string
+          last_fired_at?: string | null
+          last_threshold_price?: number | null
+          target_id?: string
+          threshold_type?: Database["public"]["Enums"]["alert_threshold_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_state_farm_id_fkey"
+            columns: ["farm_id"]
+            isOneToOne: false
+            referencedRelation: "farms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_state_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "breakeven_targets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       basis_entries: {
         Row: {
           basis_cents: number
@@ -42,6 +90,59 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "basis_entries_farm_id_fkey"
+            columns: ["farm_id"]
+            isOneToOne: false
+            referencedRelation: "farms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      breakeven_targets: {
+        Row: {
+          active: boolean
+          cost_per_acre: number | null
+          cost_per_bushel: number | null
+          created_at: string
+          crop: Database["public"]["Enums"]["crop"]
+          effective_breakeven: number | null
+          entry_mode: Database["public"]["Enums"]["alert_entry_mode"]
+          expected_yield: number | null
+          farm_id: string
+          id: string
+          profit_target_per_bushel: number | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          cost_per_acre?: number | null
+          cost_per_bushel?: number | null
+          created_at?: string
+          crop: Database["public"]["Enums"]["crop"]
+          effective_breakeven?: number | null
+          entry_mode?: Database["public"]["Enums"]["alert_entry_mode"]
+          expected_yield?: number | null
+          farm_id: string
+          id?: string
+          profit_target_per_bushel?: number | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          cost_per_acre?: number | null
+          cost_per_bushel?: number | null
+          created_at?: string
+          crop?: Database["public"]["Enums"]["crop"]
+          effective_breakeven?: number | null
+          entry_mode?: Database["public"]["Enums"]["alert_entry_mode"]
+          expected_yield?: number | null
+          farm_id?: string
+          id?: string
+          profit_target_per_bushel?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "breakeven_targets_farm_id_fkey"
             columns: ["farm_id"]
             isOneToOne: false
             referencedRelation: "farms"
@@ -450,6 +551,66 @@ export type Database = {
           },
         ]
       }
+      price_alerts: {
+        Row: {
+          basis_at_fire: number | null
+          cash_price_at_fire: number
+          crop: Database["public"]["Enums"]["crop"]
+          delivered_channels: Json
+          farm_id: string
+          fired_at: string
+          futures_at_fire: number | null
+          id: string
+          status: Database["public"]["Enums"]["alert_status"]
+          target_id: string
+          threshold_price: number
+          threshold_type: Database["public"]["Enums"]["alert_threshold_type"]
+        }
+        Insert: {
+          basis_at_fire?: number | null
+          cash_price_at_fire: number
+          crop: Database["public"]["Enums"]["crop"]
+          delivered_channels?: Json
+          farm_id: string
+          fired_at?: string
+          futures_at_fire?: number | null
+          id?: string
+          status?: Database["public"]["Enums"]["alert_status"]
+          target_id: string
+          threshold_price: number
+          threshold_type: Database["public"]["Enums"]["alert_threshold_type"]
+        }
+        Update: {
+          basis_at_fire?: number | null
+          cash_price_at_fire?: number
+          crop?: Database["public"]["Enums"]["crop"]
+          delivered_channels?: Json
+          farm_id?: string
+          fired_at?: string
+          futures_at_fire?: number | null
+          id?: string
+          status?: Database["public"]["Enums"]["alert_status"]
+          target_id?: string
+          threshold_price?: number
+          threshold_type?: Database["public"]["Enums"]["alert_threshold_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_alerts_farm_id_fkey"
+            columns: ["farm_id"]
+            isOneToOne: false
+            referencedRelation: "farms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_alerts_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "breakeven_targets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -534,6 +695,9 @@ export type Database = {
       is_field_member: { Args: { fl_id: string }; Returns: boolean }
     }
     Enums: {
+      alert_entry_mode: "per_bushel" | "per_acre_yield"
+      alert_status: "unread" | "read" | "dismissed"
+      alert_threshold_type: "breakeven" | "profit_target"
       crop: "corn" | "soybean"
       member_role: "owner" | "member"
       tenure: "owned" | "cash_rent" | "crop_share"
@@ -664,6 +828,9 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      alert_entry_mode: ["per_bushel", "per_acre_yield"],
+      alert_status: ["unread", "read", "dismissed"],
+      alert_threshold_type: ["breakeven", "profit_target"],
       crop: ["corn", "soybean"],
       member_role: ["owner", "member"],
       tenure: ["owned", "cash_rent", "crop_share"],

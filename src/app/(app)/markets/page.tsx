@@ -3,11 +3,14 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { PageHeader } from "@/components/common/page-header";
+import { BreakevenCard } from "@/components/markets/breakeven-card";
 import { CashPriceCard } from "@/components/markets/cash-price-card";
 import { ChartCard } from "@/components/markets/chart-card";
 import { CropToggle } from "@/components/markets/crop-toggle";
 import { FuturesStrip } from "@/components/markets/futures-strip";
 import { OutlookCard } from "@/components/markets/outlook-card";
+import { evaluateFarm } from "@/lib/alerts/evaluate";
+import { getBreakevenTarget } from "@/lib/alerts/queries";
 import { ACTIVE_FARM_COOKIE } from "@/lib/constants";
 import { getSessionContext } from "@/lib/farm";
 import { cashProvider } from "@/lib/markets/manual-basis";
@@ -44,12 +47,25 @@ export default async function MarketsPage({
   const symbol = CROP_TO_SYMBOL[crop];
   const now = new Date();
 
+  // Run the break-even evaluator for this farm on load (the same evaluator the
+  // cron route calls) so alerts fire even before scheduling is wired up.
+  await evaluateFarm(activeFarm.id);
+
   // Everything below consumes the two provider seams, never the raw API.
-  const [history, cash, outlook] = await Promise.all([
+  const [history, cash, outlook, target] = await Promise.all([
     getFuturesHistory(symbol, now),
     cashProvider.getCashPrice(crop, activeFarm.id),
     getOutlook(crop, now),
+    getBreakevenTarget(activeFarm.id, crop),
   ]);
+
+  const effectiveBE = target?.effectiveBreakeven ?? null;
+  const profitTargetPrice =
+    effectiveBE != null &&
+    target?.profitTargetPerBushel != null &&
+    target.profitTargetPerBushel > 0
+      ? Math.round((effectiveBE + target.profitTargetPerBushel) * 100) / 100
+      : null;
   // The futures quote (cash card / strip) and the chart history have separate
   // sources on the free tier: corn quote is live (15-min delayed), corn history
   // is premium → sample. Badge each honestly.
@@ -98,6 +114,7 @@ export default async function MarketsPage({
           asOf={cash.futuresRef!.asOf}
           source={futuresSource}
           delta={delta}
+          breakeven={{ effective: effectiveBE, profitTargetPrice }}
         />
 
         <FuturesStrip
@@ -108,6 +125,13 @@ export default async function MarketsPage({
           direction={delta.direction}
           nextMonths={nextMonths}
           source={futuresSource}
+        />
+
+        <BreakevenCard
+          farmId={activeFarm.id}
+          crop={crop}
+          cropLabel={CROP_LABEL[crop]}
+          target={target}
         />
 
         <ChartCard

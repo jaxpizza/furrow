@@ -4,7 +4,7 @@ import type { RainSeverity } from "@/lib/weather/calc";
 import type { RainfallRead } from "@/lib/weather/types";
 import { cn } from "@/lib/utils";
 
-import { Explainer } from "./explainer";
+import { Explainer } from "@/components/common/explainer";
 import { RainChart } from "./rain-chart";
 
 const SCALE: { key: RainSeverity; label: string }[] = [

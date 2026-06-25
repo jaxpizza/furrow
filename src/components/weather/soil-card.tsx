@@ -5,7 +5,7 @@ import { Delta } from "@/components/common/delta";
 import type { SoilRead } from "@/lib/weather/types";
 import { cn } from "@/lib/utils";
 
-import { Explainer } from "./explainer";
+import { Explainer } from "@/components/common/explainer";
 
 export function SoilCard({ soil }: { soil: SoilRead | null }) {
   if (!soil) {

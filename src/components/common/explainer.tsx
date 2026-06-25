@@ -3,7 +3,8 @@ import { ChevronDown, HelpCircle } from "lucide-react";
 /**
  * Lightweight "What's this?" disclosure built on native <details> — no client
  * JS, no accordion library. Always-visible cards stay clean; the deeper plain-
- * language detail expands on demand.
+ * language detail expands on demand. App-wide standard: every farmer-facing
+ * metric pairs a visible plain line with one of these optional expanders.
  */
 export function Explainer({
   label = "What's this?",

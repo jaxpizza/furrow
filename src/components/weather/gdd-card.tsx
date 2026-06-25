@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Delta } from "@/components/common/delta";
 import type { GddRead } from "@/lib/weather/types";
 
-import { Explainer } from "./explainer";
+import { Explainer } from "@/components/common/explainer";
 
 const CORN_MATURITY = 2700;
 

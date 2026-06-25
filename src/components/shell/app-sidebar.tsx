@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 import { NAV_ITEMS } from "./nav-items";
 
-export function AppSidebar() {
+export function AppSidebar({ unreadAlerts = 0 }: { unreadAlerts?: number }) {
   const pathname = usePathname();
 
   return (
@@ -44,7 +44,7 @@ export function AppSidebar() {
                   transition={{ type: "spring", stiffness: 500, damping: 40 }}
                 />
               )}
-              <span className="relative flex items-center gap-3">
+              <span className="relative flex flex-1 items-center gap-3">
                 <Icon
                   className={cn(
                     "size-4 transition-colors",
@@ -55,6 +55,11 @@ export function AppSidebar() {
                   strokeWidth={2}
                 />
                 {item.label}
+                {item.href === "/alerts" && unreadAlerts > 0 && (
+                  <span className="tnum ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-semibold text-[#1b1403]">
+                    {unreadAlerts > 99 ? "99+" : unreadAlerts}
+                  </span>
+                )}
               </span>
             </Link>
           );

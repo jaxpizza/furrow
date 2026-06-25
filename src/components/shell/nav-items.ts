@@ -1,4 +1,5 @@
 import {
+  Bell,
   CloudSun,
   LayoutDashboard,
   Map,
@@ -20,6 +21,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Fields", href: "/fields", icon: Map },
   { label: "Markets", href: "/markets", icon: TrendingUp },
+  { label: "Alerts", href: "/alerts", icon: Bell },
   { label: "Weather", href: "/weather", icon: CloudSun },
   { label: "Inputs", href: "/inputs", icon: Sprout, placeholder: true },
   { label: "News", href: "/news", icon: Newspaper, placeholder: true },

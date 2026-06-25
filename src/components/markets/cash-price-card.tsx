@@ -9,6 +9,7 @@ import { Delta, type Direction } from "@/components/common/delta";
 import type { Crop } from "@/lib/types/database";
 
 import { BasisForm } from "./basis-form";
+import { BreakevenVsCash } from "./breakeven-vs-cash";
 
 function fmtBasis(cents: number): string {
   const sign = cents >= 0 ? "+" : "−";
@@ -38,6 +39,7 @@ export function CashPriceCard({
   asOf,
   source,
   delta,
+  breakeven,
 }: {
   crop: Crop;
   cropLabel: string;
@@ -52,6 +54,8 @@ export function CashPriceCard({
   /** futures source: 'api-ninjas' (live, 15-min delayed) | 'sample' */
   source: string;
   delta: { change: number; pct: number; direction: Direction };
+  /** the farmer's break-even line, shown against the cash price */
+  breakeven: { effective: number | null; profitTargetPrice: number | null };
 }) {
   const isSample = source === "sample";
   const [editing, setEditing] = useState(false);
@@ -133,6 +137,13 @@ export function CashPriceCard({
             )}
           </button>
         </div>
+
+        {/* break-even vs cash — the at-a-glance moneymaker */}
+        <BreakevenVsCash
+          breakeven={breakeven.effective}
+          profitTargetPrice={breakeven.profitTargetPrice}
+          cashPrice={cashPrice}
+        />
 
         {/* prompt to set basis when none stored */}
         {!hasBasis && !editing && (
