@@ -94,7 +94,10 @@ export function AlertsFeed({ alerts }: { alerts: FiredAlert[] }) {
                   </>
                 )}
               </p>
-              <span className="text-text-tertiary mt-1 block text-[11px]">
+              <span
+                className="text-text-tertiary mt-1 block text-[11px]"
+                suppressHydrationWarning
+              >
                 {relTime(a.firedAt)}
               </span>
             </div>

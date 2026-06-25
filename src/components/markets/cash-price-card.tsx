@@ -16,14 +16,24 @@ function fmtBasis(cents: number): string {
   return `${sign}${Math.abs(cents)}¢`;
 }
 
+// Format date and time in SEPARATE calls with an explicit timezone. A single
+// combined toLocaleString() is a hydration trap: Node's ICU joins date+time
+// with " at " ("Jun 25 at 1:19 PM") while the browser uses ", ", and an unset
+// timeZone drifts between the server's clock and the user's. Pinning Central
+// (this is the Central-IL cash price) makes server and client render identical.
 function fmtAsOf(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString("en-US", {
+  const date = d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    timeZone: "America/Chicago",
+  });
+  const time = d.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "America/Chicago",
   });
+  return `${date}, ${time} CT`;
 }
 
 export function CashPriceCard({
