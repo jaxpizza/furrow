@@ -3,8 +3,15 @@ import { createServerClient } from "@supabase/ssr";
 
 import type { Database } from "@/lib/types/database";
 
-/** Routes reachable without an authenticated session. */
-const PUBLIC_PATHS = ["/sign-in", "/sign-up", "/auth"];
+/** Routes reachable without an authenticated session. The alert evaluator is
+ *  here because it self-authenticates (CRON_SECRET) for scheduled calls that
+ *  carry no user session — without this, cron hits the sign-in redirect. */
+const PUBLIC_PATHS = [
+  "/sign-in",
+  "/sign-up",
+  "/auth",
+  "/api/alerts/evaluate",
+];
 
 function isPublicPath(pathname: string) {
   if (pathname === "/") return true;
