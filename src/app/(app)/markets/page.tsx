@@ -14,7 +14,7 @@ import { getBreakevenTarget } from "@/lib/alerts/queries";
 import { ACTIVE_FARM_COOKIE } from "@/lib/constants";
 import { getSessionContext } from "@/lib/farm";
 import { cashProvider } from "@/lib/markets/manual-basis";
-import { getOutlook } from "@/lib/markets/outlook";
+import { getMarketOutlook } from "@/lib/outlook/synthesis";
 import {
   deltaFromHistory,
   getFuturesHistory,
@@ -55,7 +55,7 @@ export default async function MarketsPage({
   const [history, cash, outlook, target] = await Promise.all([
     getFuturesHistory(symbol, now),
     cashProvider.getCashPrice(crop, activeFarm.id),
-    getOutlook(crop, now),
+    getMarketOutlook(crop, activeFarm.id, now),
     getBreakevenTarget(activeFarm.id, crop),
   ]);
 

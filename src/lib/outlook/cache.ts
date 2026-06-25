@@ -128,6 +128,57 @@ export async function reportsLastFetched(): Promise<number | null> {
   }
 }
 
+// ── synthesized outlook (Stage 2) ────────────────────────────────────────────
+export type OutlookV2Row = {
+  crop: Crop;
+  corpus_hash: string;
+  payload: unknown;
+  model: string;
+  generated_at: string;
+};
+
+export async function readLatestOutlookV2(
+  crop: Crop,
+): Promise<OutlookV2Row | null> {
+  try {
+    const { data } = await db()
+      .from("market_outlook_v2")
+      .select("crop, corpus_hash, payload, model, generated_at")
+      .eq("crop", crop)
+      .order("generated_at", { ascending: false })
+      .limit(1);
+    return (data?.[0] as OutlookV2Row | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeOutlookV2(
+  crop: Crop,
+  corpusHash: string,
+  payload: unknown,
+  model: string,
+  generatedAt: string,
+): Promise<boolean> {
+  try {
+    const { error } = await db()
+      .from("market_outlook_v2")
+      .upsert(
+        {
+          crop,
+          corpus_hash: corpusHash,
+          payload: JSON.parse(JSON.stringify(payload)),
+          model,
+          generated_at: generatedAt,
+        },
+        { onConflict: "crop,corpus_hash" },
+      );
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 type NewsRow = {
   link: string;
   source: string;
