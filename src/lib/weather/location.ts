@@ -14,6 +14,13 @@ function centroidOf(geom: Polygon): { lat: number; lon: number } {
   return { lon: c[0], lat: c[1] };
 }
 
+export type FieldMarker = { id: string; name: string; lat: number; lon: number };
+
+/** Centroid pin for each field — used to mark field locations on the radar. */
+export function fieldMarkers(fields: WeatherField[]): FieldMarker[] {
+  return fields.map((f) => ({ id: f.id, name: f.name, ...centroidOf(f.geom) }));
+}
+
 /**
  * Resolve the weather point for the current selection:
  *  - a specific field  → its polygon centroid

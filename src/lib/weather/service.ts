@@ -246,8 +246,10 @@ export async function getWeatherDashboard(
     };
   }
 
-  // ── fieldwork window: longest near-term dry run ─────────────────────────
-  const fieldwork = bestDryWindow(dWindow);
+  // ── fieldwork window: longest dry run within the shown 7-day forecast ───
+  // (capped to 7 days — beyond that daily precip is not reliable enough to
+  //  claim a specific dry stretch)
+  const fieldwork = bestDryWindow(daily);
 
   // ── stress flags ─────────────────────────────────────────────────────────
   const stress = stressFlags(dWindow);
@@ -288,7 +290,8 @@ function bestDryWindow(days: ForecastDay[]): FieldworkWindow {
     startDate: s.date,
     endDate: e.date,
     days: best.len,
-    label: `${best.len} dry days ${s.weekday}–${e.weekday}`,
+    startsToday: best.start === 0,
+    label: `${best.len} dry days`,
   };
 }
 

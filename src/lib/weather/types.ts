@@ -80,10 +80,11 @@ export type HourPoint = {
 };
 
 export type FieldworkWindow = {
-  startDate: string;
-  endDate: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
   days: number;
-  label: string; // "3 dry days Thu–Sat"
+  startsToday: boolean;
+  label: string; // "3 dry days"
 } | null;
 
 export type StressFlag = {

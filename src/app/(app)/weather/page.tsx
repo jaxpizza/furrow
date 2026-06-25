@@ -18,7 +18,11 @@ import { WeatherAttribution } from "@/components/weather/attribution";
 import { ACTIVE_FARM_COOKIE } from "@/lib/constants";
 import { getSessionContext } from "@/lib/farm";
 import { createClient } from "@/lib/supabase/server";
-import { resolveLocation, type WeatherField } from "@/lib/weather/location";
+import {
+  fieldMarkers,
+  resolveLocation,
+  type WeatherField,
+} from "@/lib/weather/location";
 import { getWeatherDashboard } from "@/lib/weather/service";
 
 export const metadata: Metadata = { title: "Weather" };
@@ -53,6 +57,12 @@ export default async function WeatherPage({
   const selected = fieldParam ?? "all";
   const location = resolveLocation(fields, selected);
   const wx = await getWeatherDashboard(location, new Date());
+
+  // Markers for the radar: the chosen field, or every field when "all".
+  const allMarkers = fieldMarkers(fields);
+  const markers = location.fieldId
+    ? allMarkers.filter((m) => m.id === location.fieldId)
+    : allMarkers;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -95,6 +105,7 @@ export default async function WeatherPage({
           current={wx.current}
           lat={location.lat}
           lon={location.lon}
+          markers={markers}
         />
         <RainfallCard rainfall={wx.rainfall} />
         <SoilCard soil={wx.soil} />

@@ -3,16 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 
+import type { FieldMarker } from "@/lib/weather/location";
+
 import "mapbox-gl/dist/mapbox-gl.css";
 
 type Frame = { time: number; path: string };
 
 /**
  * Live animated precipitation radar (RainViewer, free/no-key) overlaid on a dark
- * Mapbox base, centered on the field. RainViewer aggregates public weather radar
- * (NWS/NEXRAD etc.). Frames animate through the last ~2 hours.
+ * Mapbox base. RainViewer aggregates public weather radar (NWS/NEXRAD etc.);
+ * frames animate through the last ~2 hours. Markers pin each field; for "all
+ * fields" the view fits to every field.
  */
-export function RainRadar({ lat, lon }: { lat: number; lon: number }) {
+export function RainRadar({
+  lat,
+  lon,
+  markers,
+}: {
+  lat: number;
+  lon: number;
+  markers: FieldMarker[];
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -20,6 +31,8 @@ export function RainRadar({ lat, lon }: { lat: number; lon: number }) {
   const [failed, setFailed] = useState(false);
 
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  // stable signature so the effect re-runs only when the points actually change
+  const markerSig = markers.map((m) => `${m.lat},${m.lon}`).join("|");
 
   useEffect(() => {
     if (!token || !containerRef.current || mapRef.current) return;
@@ -30,18 +43,43 @@ export function RainRadar({ lat, lon }: { lat: number; lon: number }) {
       style: "mapbox://styles/mapbox/dark-v11",
       center: [lon, lat],
       zoom: 6.4,
+      minZoom: 3.5, // radar past a continental view is pointless + tile-heavy
       attributionControl: false,
-      scrollZoom: false, // let the page scroll
+      scrollZoom: false, // inline: let the page scroll (re-enabled in fullscreen)
       dragRotate: false,
       pitchWithRotate: false,
     });
     mapRef.current = map;
 
-    // field marker
-    const el = document.createElement("div");
-    el.style.cssText =
-      "width:10px;height:10px;border-radius:9999px;background:#EFB23E;box-shadow:0 0 0 3px rgba(239,178,62,0.25)";
-    new mapboxgl.Marker({ element: el }).setLngLat([lon, lat]).addTo(map);
+    // zoom +/- and fullscreen toggle (one button enters/exits fullscreen)
+    map.addControl(
+      new mapboxgl.NavigationControl({ showCompass: false }),
+      "top-right",
+    );
+    map.addControl(new mapboxgl.FullscreenControl(), "top-right");
+
+    // field markers — pin every field, fit the view to all of them
+    const pts = markers.length ? markers : [{ lat, lon, name: "" }];
+    pts.forEach((p) => {
+      const el = document.createElement("div");
+      el.style.cssText =
+        "width:11px;height:11px;border-radius:9999px;background:#EFB23E;box-shadow:0 0 0 3px rgba(239,178,62,0.25)";
+      if (p.name) el.title = p.name;
+      new mapboxgl.Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(map);
+    });
+    if (markers.length > 1) {
+      const bounds = new mapboxgl.LngLatBounds();
+      markers.forEach((p) => bounds.extend([p.lon, p.lat]));
+      map.fitBounds(bounds, { padding: 56, maxZoom: 8, duration: 0 });
+    }
+
+    // scroll-zoom is distracting inline but wanted in fullscreen
+    const onFsChange = () => {
+      if (document.fullscreenElement) map.scrollZoom.enable();
+      else map.scrollZoom.disable();
+      map.resize();
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
 
     let cancelled = false;
 
@@ -71,26 +109,30 @@ export function RainRadar({ lat, lon }: { lat: number; lon: number }) {
             type: "raster",
             tiles: [`${host}${f.path}/256/{z}/{x}/{y}/4/1_1.png`],
             tileSize: 256,
+            // RainViewer radar tiles only exist to ~z7; cap here so Mapbox
+            // upscales the z7 tile instead of requesting unavailable ones.
+            maxzoom: 7,
           });
           map.addLayer({
             id,
             type: "raster",
             source: id,
-            paint: {
-              "raster-opacity": 0,
-              "raster-opacity-transition": { duration: 0 },
-            },
+            // hidden frames use visibility:none so Mapbox fetches NO tiles for
+            // them — only the active frame loads, avoiding a request storm
+            // (and the failed-tile console spam) when zoomed out.
+            layout: { visibility: "none" },
+            paint: { "raster-opacity": 0.72 },
           });
         });
 
-        // animate through frames
+        // animate through frames — toggle visibility, not opacity
         let idx = 0;
         const show = (active: number) => {
           frames.forEach((_, i) =>
-            map.setPaintProperty(
+            map.setLayoutProperty(
               `rv-${i}`,
-              "raster-opacity",
-              i === active ? 0.72 : 0,
+              "visibility",
+              i === active ? "visible" : "none",
             ),
           );
           setFrameTime(
@@ -122,10 +164,13 @@ export function RainRadar({ lat, lon }: { lat: number; lon: number }) {
     return () => {
       cancelled = true;
       if (timerRef.current) clearInterval(timerRef.current);
+      document.removeEventListener("fullscreenchange", onFsChange);
       map.remove();
       mapRef.current = null;
     };
-  }, [lat, lon, token]);
+    // markerSig is a stable signature standing in for the markers array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lat, lon, token, markerSig]);
 
   if (!token) {
     return (

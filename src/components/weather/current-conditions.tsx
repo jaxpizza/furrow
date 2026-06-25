@@ -2,6 +2,7 @@ import { Droplets, Wind } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { weatherInfo } from "@/lib/weather/weather-codes";
+import type { FieldMarker } from "@/lib/weather/location";
 import type { CurrentConditions as Current } from "@/lib/weather/types";
 
 import { RainRadar } from "./rain-radar";
@@ -15,10 +16,12 @@ export function CurrentConditionsCard({
   current,
   lat,
   lon,
+  markers,
 }: {
   current: Current | null;
   lat: number;
   lon: number;
+  markers: FieldMarker[];
 }) {
   const info = current ? weatherInfo(current.weatherCode) : null;
 
@@ -86,7 +89,7 @@ export function CurrentConditionsCard({
         </div>
 
         {/* live rain radar — fills the panel */}
-        <RainRadar lat={lat} lon={lon} />
+        <RainRadar lat={lat} lon={lon} markers={markers} />
       </div>
     </Card>
   );

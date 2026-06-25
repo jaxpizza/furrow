@@ -8,6 +8,16 @@ import type {
   HourPoint,
 } from "@/lib/weather/types";
 
+/** "2026-06-28" → "Sun Jun 28", parsed as a local calendar date. */
+function fmtDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function ForecastCard({
   daily,
   hourly,
@@ -17,19 +27,33 @@ export function ForecastCard({
   hourly: HourPoint[];
   fieldwork: FieldworkWindow;
 }) {
+  const dryRange = fieldwork
+    ? `${fieldwork.startsToday ? "Today" : fmtDate(fieldwork.startDate)} – ${fmtDate(fieldwork.endDate)}`
+    : null;
+
   return (
     <Card className="p-5 md:col-span-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
           7-Day Forecast
         </span>
         {fieldwork && (
           <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--pos)]/25 bg-[var(--pos)]/12 px-2 py-1 text-xs font-medium text-[var(--pos)]">
             <CalendarCheck className="size-3.5" />
-            {fieldwork.label} — good fieldwork window
+            <span className="tnum">{dryRange}</span>
+            <span className="text-[var(--pos)]/70">· {fieldwork.days}-day dry run</span>
           </span>
         )}
       </div>
+
+      {fieldwork && (
+        <p className="text-text-secondary mt-2 text-xs leading-relaxed">
+          A {fieldwork.days}-day stretch in the forecast with under 0.10″ of
+          rain and below a 40% chance each day —{" "}
+          <span className="tnum text-foreground">{dryRange}</span>. Typically
+          when ground is workable. Forecast outlook, not a recommendation.
+        </p>
+      )}
 
       {/* 7-day */}
       <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-7">
