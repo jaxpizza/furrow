@@ -99,36 +99,42 @@ export class UsdaDemandProvider implements DemandProvider {
     if (cc == null) return [];
 
     const my = exportMarketingYear();
+    // allCountries returns ONE ROW PER COUNTRY PER WEEK — not an aggregated series.
+    // Aggregate across countries at the latest week to get the U.S. total.
     const all = (await this.fas(
       `/exports/commodityCode/${cc}/allCountries/marketYear/${my}`,
     )) as EsrRow[] | null;
     if (!all || all.length === 0) return [];
-    const chinaSeries =
-      china != null
-        ? ((await this.fas(
-            `/exports/commodityCode/${cc}/countryCode/${china}/marketYear/${my}`,
-          )) as EsrRow[] | null)
-        : null;
 
-    const latest = all[all.length - 1];
-    const prev = all.length > 1 ? all[all.length - 2] : null;
-    const cumMT = num(latest.currentMYTotalCommitment);
-    const weeklyMT = num(latest.weeklyExports ?? latest.currentMYNetSales);
-    const chinaCum = chinaSeries?.length
-      ? num(chinaSeries[chinaSeries.length - 1].currentMYTotalCommitment)
-      : null;
+    const weeks = [...new Set(all.map((r) => r.weekEndingDate ?? ""))]
+      .filter(Boolean)
+      .sort();
+    const latestWk = weeks[weeks.length - 1];
+    const priorWk = weeks.length > 1 ? weeks[weeks.length - 2] : null;
+    const atWeek = (wk: string | null) => all.filter((r) => r.weekEndingDate === wk);
+    const sumField = (rows: EsrRow[], f: keyof EsrRow) =>
+      rows.reduce((s, r) => s + (num(r[f]) ?? 0), 0);
+
+    const latestRows = atWeek(latestWk);
+    const cumMT = sumField(latestRows, "currentMYTotalCommitment");
+    const netMT = sumField(latestRows, "currentMYNetSales");
+    const priorNetMT = priorWk ? sumField(atWeek(priorWk), "currentMYNetSales") : null;
+    const chinaCum =
+      china != null
+        ? num(latestRows.find((r) => num(r.countryCode) === china)?.currentMYTotalCommitment)
+        : null;
     const pctChina =
       cumMT && chinaCum != null ? round((chinaCum / cumMT) * 100, 1) : null;
 
     // pace vs WASDE target
     const targetBu = targets[crop].exports; // mil bu
     const pace = paceVsTarget(cumMT, targetBu, crop);
-    const week = (latest.weekEndingDate ?? "").slice(0, 10);
+    const week = (latestWk ?? "").slice(0, 10);
 
     const frames: DemandFrame[] = [
       {
         metric: "Cumulative export commitments",
-        value: cumMT != null ? round(cumMT / 1e6, 2) : null,
+        value: round(cumMT / 1e6, 2),
         unit: "mil MT",
         deltaPrior: null,
         priorLabel: null,
@@ -142,13 +148,11 @@ export class UsdaDemandProvider implements DemandProvider {
       },
       {
         metric: "Weekly net sales",
-        value: weeklyMT != null ? round(weeklyMT / 1e3, 1) : null,
+        value: round(netMT / 1e3, 1),
         unit: "k MT",
         deltaPrior:
-          weeklyMT != null && prev
-            ? round((weeklyMT - (num(prev.weeklyExports ?? prev.currentMYNetSales) ?? 0)) / 1e3, 1)
-            : null,
-        priorLabel: prev ? "prior week" : null,
+          priorNetMT != null ? round((netMT - priorNetMT) / 1e3, 1) : null,
+        priorLabel: priorNetMT != null ? "prior week" : null,
         deltaYear: null,
         priorYearLabel: null,
         priorYearValue: null,
@@ -166,7 +170,7 @@ export class UsdaDemandProvider implements DemandProvider {
         marketingYear: String(my),
         period: week ? `week ending ${week}` : null,
         releasedAt: week ? `${week}T00:00:00Z` : null,
-        sourceUrl: "https://fas.usda.gov/data/commodities/corn", // public ESR landing
+        sourceUrl: `https://fas.usda.gov/data/commodities/${crop === "corn" ? "corn" : "soybeans"}`,
         frames,
       },
     ];
@@ -349,6 +353,7 @@ function myElapsedPct(): number {
 
 // ── small helpers ────────────────────────────────────────────────────────────
 type EsrRow = {
+  countryCode?: number | string;
   weekEndingDate?: string;
   weeklyExports?: number | string;
   currentMYNetSales?: number | string;
