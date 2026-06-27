@@ -6,11 +6,14 @@ import {
   ExternalLink,
   Layers,
   Newspaper,
+  Ship,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
 import { Card } from "@/components/ui/card";
 import { getSessionContext } from "@/lib/farm";
+import { getDemandSnapshot } from "@/lib/outlook/demand-ingest";
+import { DEMAND_LABEL, type DemandBundle, type DemandFrame } from "@/lib/outlook/demand-types";
 import { getEconSnapshot } from "@/lib/outlook/econ-ingest";
 import { REPORT_LABEL, type EconBundle, type EconFrame } from "@/lib/outlook/econ-types";
 import { getSourcesSnapshot } from "@/lib/outlook/ingest";
@@ -33,11 +36,18 @@ export default async function OutlookSourcesPage() {
   if (!user) redirect("/sign-in");
   if (farms.length === 0) redirect("/onboarding");
 
-  const [{ news, reports, newsFetchedAt, reportsFetchedAt }, econ] =
-    await Promise.all([getSourcesSnapshot(), getEconSnapshot()]);
+  const [{ news, reports, newsFetchedAt, reportsFetchedAt }, econ, demandSnap] =
+    await Promise.all([
+      getSourcesSnapshot(),
+      getEconSnapshot(),
+      getDemandSnapshot(),
+    ]);
 
   const supply = [...econ.bundles].sort(
     (a, b) => a.crop.localeCompare(b.crop) || a.reportType.localeCompare(b.reportType),
+  );
+  const demand = [...demandSnap.bundles].sort(
+    (a, b) => a.crop.localeCompare(b.crop) || a.dataType.localeCompare(b.dataType),
   );
 
   const bundles = [...reports].sort(
@@ -118,6 +128,32 @@ export default async function OutlookSourcesPage() {
         )}
       </section>
 
+      {/* ── Demand (Phase B: Export Sales / Ethanol / Crush) ──────────────── */}
+      <section className="mb-8">
+        <SectionHeader
+          icon={<Ship className="size-4 text-[var(--accent)]" />}
+          title="USDA Demand — Export Sales, Ethanol, Crush"
+          meta={`${demand.length} sources · ${fmtAgo(demandSnap.fetchedAt)}`}
+        />
+        {demand.length === 0 ? (
+          <Empty>
+            No demand data cached yet — a source may be temporarily unavailable
+            (FAS export-sales outages, or a missing key).
+          </Empty>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {demand.map((b) => (
+              <DemandCard key={`${b.dataType}-${b.crop}`} b={b} />
+            ))}
+          </div>
+        )}
+        <p className="text-text-tertiary mt-3 text-[11px] leading-relaxed">
+          Pace-vs-target is the headline frame (cumulative vs the WASDE annual
+          target). A single weekly/monthly print is noisy — the pace and trend
+          carry the signal.
+        </p>
+      </section>
+
       {/* ── USDA NASS ─────────────────────────────────────────────────────── */}
       <section className="mb-8">
         <SectionHeader
@@ -191,6 +227,79 @@ export default async function OutlookSourcesPage() {
         )}
       </section>
     </div>
+  );
+}
+
+function DemandCard({ b }: { b: DemandBundle }) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
+          {CROP_LABEL[b.crop]} · {DEMAND_LABEL[b.dataType]}
+          {b.period ? ` · ${b.period}` : ""}
+        </span>
+        {b.sourceUrl && (
+          <a
+            href={b.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-text-tertiary hover:text-[var(--accent)] shrink-0"
+            title="Source"
+          >
+            <ExternalLink className="size-3" />
+          </a>
+        )}
+      </div>
+      <ul className="mt-2.5 space-y-2">
+        {b.frames.map((f, i) => (
+          <DemandFrameRow key={i} f={f} />
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function DemandFrameRow({ f }: { f: DemandFrame }) {
+  return (
+    <li className="border-border/40 border-b pb-1.5 last:border-0 last:pb-0">
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="text-text-secondary">{f.metric}</span>
+        <span className="flex items-baseline gap-1">
+          <span className="tnum text-foreground font-medium">
+            {f.value != null ? fmtValue(f.value) : "—"}
+          </span>
+          <span className="text-text-tertiary text-[10px]">{f.unit}</span>
+        </span>
+      </div>
+      {f.paceStatus && f.paceText && (
+        <div className="mt-1 flex items-start gap-1 text-[10px]">
+          <span
+            className={
+              f.paceStatus === "ahead"
+                ? "tnum shrink-0 rounded bg-[var(--pos)]/12 px-1.5 text-[var(--pos)]"
+                : f.paceStatus === "behind"
+                  ? "tnum shrink-0 rounded bg-[var(--neg)]/12 px-1.5 text-[var(--neg)]"
+                  : "tnum text-text-tertiary shrink-0 rounded bg-bg-elevated px-1.5"
+            }
+          >
+            {f.paceStatus}
+          </span>
+          <span className="text-text-tertiary leading-snug">{f.paceText}</span>
+        </div>
+      )}
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]">
+        {f.deltaPrior != null && (
+          <FrameChip
+            label={f.priorLabel ? `vs ${f.priorLabel}` : "Δ prior"}
+            v={f.deltaPrior}
+          />
+        )}
+        {f.deltaYear != null && <FrameChip label="Δ year" v={f.deltaYear} />}
+        {f.pctChina != null && (
+          <span className="text-text-tertiary tnum">{f.pctChina}% China</span>
+        )}
+      </div>
+    </li>
   );
 }
 

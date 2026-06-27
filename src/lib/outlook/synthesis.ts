@@ -13,6 +13,8 @@ import { CROP_LABEL, CROP_TO_SYMBOL } from "@/lib/markets/symbols";
 import type { Crop } from "@/lib/types/database";
 
 import { readLatestOutlookV2, readNewsItems, readReportBundles, writeOutlookV2 } from "./cache";
+import { getDemandSnapshot } from "./demand-ingest";
+import { DEMAND_LABEL, type DemandBundle, type DemandFrame } from "./demand-types";
 import { getEconSnapshot, type UpcomingReport } from "./econ-ingest";
 import { REPORT_LABEL, type EconBundle, type EconFrame } from "./econ-types";
 import { NASS_ATTRIBUTION } from "./sources";
@@ -206,6 +208,24 @@ async function assembleCorpus(
   if (supply.length === 0) lines.push("(no supply data cached yet)");
   lines.push("");
 
+  // 1c. USDA DEMAND — export sales (+ China), ethanol, crush; pace-vs-target framed
+  const demandSnap = await getDemandSnapshot();
+  const demand = demandSnap.bundles.filter((b) => b.crop === crop);
+  lines.push(
+    "=== USDA DEMAND DATA (export sales / ethanol / crush — reason from the pace-vs-target frame; a single weekly/monthly print is noisy, lean on pace + trend; flash sales are early signals, not shipments) ===",
+  );
+  let d = 0;
+  for (const b of demand) {
+    d += 1;
+    const id = `D${d}`;
+    const label = `USDA ${DEMAND_LABEL[b.dataType]} (${b.period ?? b.marketingYear})`;
+    lines.push(`[${id}] ${label} — ${b.frames.map(fmtDemandFrame).join("; ")}`);
+    sources.set(id, { id, label, url: b.sourceUrl || null });
+  }
+  if (demand.length === 0)
+    lines.push("(no demand data cached yet — sources may be temporarily unavailable)");
+  lines.push("");
+
   // 2. Price & basis — reuse the markets service
   const symbol = CROP_TO_SYMBOL[crop];
   const history = await getFuturesHistory(symbol, now);
@@ -272,7 +292,7 @@ async function assembleCorpus(
       newsThrough: newsThrough ?? null,
       priceTrend: dir,
     },
-    hash: hashCorpus(crop, reports, news, dir, supply),
+    hash: hashCorpus(crop, reports, news, dir, supply, demand),
     sampleData,
   };
 }
@@ -287,6 +307,19 @@ function fmtFrame(f: EconFrame): string {
   if (f.stocksToUse != null) parts.push(`stocks-to-use ${f.stocksToUse}%`);
   let out = `${f.metric}: ${parts.join(", ")}`;
   if (!f.expectationAvailable) out += " [trade expectations: not tracked]";
+  if (f.note) out += ` — ${f.note}`;
+  return out;
+}
+
+function fmtDemandFrame(f: DemandFrame): string {
+  const parts: string[] = [`${f.value ?? "—"} ${f.unit}`];
+  if (f.paceText) parts.push(f.paceText);
+  if (f.deltaPrior != null)
+    parts.push(`Δprior ${signed(f.deltaPrior)}${f.priorLabel ? ` (${f.priorLabel})` : ""}`);
+  if (f.deltaYear != null)
+    parts.push(`Δyear ${signed(f.deltaYear)}${f.priorYearLabel ? ` (${f.priorYearLabel})` : ""}`);
+  if (f.pctChina != null) parts.push(`${f.pctChina}% to China`);
+  let out = `${f.metric}: ${parts.join(", ")}`;
   if (f.note) out += ` — ${f.note}`;
   return out;
 }
@@ -317,6 +350,7 @@ function hashCorpus(
   news: NewsItem[],
   dir: string,
   supply: EconBundle[],
+  demand: DemandBundle[],
 ): string {
   const usda = reports
     .map(
@@ -331,7 +365,11 @@ function hashCorpus(
     .map((b) => `${b.reportType}:${b.releasedAt}:${b.frames.map((f) => `${f.metric}=${f.value}`).join(",")}`)
     .sort()
     .join("|");
-  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}`;
+  const dem = demand
+    .map((b) => `${b.dataType}:${b.period}:${b.frames.map((f) => `${f.metric}=${f.value}`).join(",")}`)
+    .sort()
+    .join("|");
+  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}`;
   return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 

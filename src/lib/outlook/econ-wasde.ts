@@ -26,6 +26,11 @@ export type WasdeCropFigures = {
   supplyTotal: WasdeMetric | null;
   useTotal: WasdeMetric | null;
   avgFarmPrice: WasdeMetric | null;
+  // demand targets (Phase B pace-vs-target): exports (both crops),
+  // ethanol-for-corn (corn only), crushings (soy only)
+  exports: WasdeMetric | null;
+  ethanolUse: WasdeMetric | null;
+  crushUse: WasdeMetric | null;
 };
 
 function norm(s: string): string {
@@ -57,7 +62,9 @@ function attributeBlocks(region: string, label: string): Cell[][] {
   const re = /<attribute(\d) attribute\1="([^"]*)">([\s\S]*?)<\/attribute\1>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(region))) {
-    if (norm(m[2]) !== label) continue;
+    // prefix match — WASDE row labels carry footnote suffixes ("Ethanol &
+    // by-products 3/", "Avg. Farm Price ($/bu) 4/").
+    if (!norm(m[2]).startsWith(label)) continue;
     const inner = m[3];
     const cells: Cell[] = [];
     const tre = /(market_year|forecast_month|cell_value)\d="([^"]*)"/g;
@@ -138,30 +145,26 @@ const METRICS: [
   ["supplyTotal", "Supply, Total", "mil bu", [10000, 25000], [3000, 8000]],
   ["useTotal", "Use, Total", "mil bu", [8000, 20000], [2500, 6500]],
   ["avgFarmPrice", "Avg. Farm Price ($/bu)", "$/bu", [2, 9], [6, 20]],
+  // demand targets for pace-vs-target (impossible range on the wrong crop → null)
+  ["exports", "Exports", "mil bu", [1000, 4000], [800, 3000]],
+  ["ethanolUse", "Ethanol & by-products", "mil bu", [4000, 7000], [-1, -1]],
+  ["crushUse", "Crushings", "mil bu", [-1, -1], [1500, 3500]],
 ];
 
-function parseCrop(
-  region: string,
-  rangeIdx: 0 | 1,
-): WasdeCropFigures {
+function parseCrop(region: string, rangeIdx: 0 | 1): WasdeCropFigures {
   const out: WasdeCropFigures = {
     endingStocks: null,
     production: null,
     supplyTotal: null,
     useTotal: null,
     avgFarmPrice: null,
+    exports: null,
+    ethanolUse: null,
+    crushUse: null,
   };
   for (const [key, label, unit, cornRange, soyRange] of METRICS) {
     const range = rangeIdx === 0 ? cornRange : soyRange;
-    // Avg. Farm Price labels carry a footnote suffix; match by prefix.
-    const region2 = region;
-    let metric = extractMetric(region2, label, unit, range);
-    if (!metric && label.startsWith("Avg. Farm Price")) {
-      // find the actual footnoted label
-      const m = region.match(/attribute\d="(Avg\. Farm Price \(\$\/bu\)[^"]*)"/);
-      if (m) metric = extractMetric(region2, norm(m[1]), unit, range);
-    }
-    out[key] = metric;
+    out[key] = extractMetric(region, label, unit, range);
   }
   return out;
 }

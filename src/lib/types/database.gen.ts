@@ -710,6 +710,42 @@ export type Database = {
         }
         Relationships: []
       }
+      usda_demand_cache: {
+        Row: {
+          crop: Database["public"]["Enums"]["crop"]
+          data_type: string
+          fetched_at: string
+          id: string
+          marketing_year: string
+          payload: Json
+          period: string
+          released_at: string | null
+          source_url: string | null
+        }
+        Insert: {
+          crop: Database["public"]["Enums"]["crop"]
+          data_type: string
+          fetched_at?: string
+          id?: string
+          marketing_year: string
+          payload: Json
+          period: string
+          released_at?: string | null
+          source_url?: string | null
+        }
+        Update: {
+          crop?: Database["public"]["Enums"]["crop"]
+          data_type?: string
+          fetched_at?: string
+          id?: string
+          marketing_year?: string
+          payload?: Json
+          period?: string
+          released_at?: string | null
+          source_url?: string | null
+        }
+        Relationships: []
+      }
       usda_econ_cache: {
         Row: {
           crop: Database["public"]["Enums"]["crop"]
