@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Database, ExternalLink, Newspaper } from "lucide-react";
+import {
+  CalendarClock,
+  Database,
+  ExternalLink,
+  Layers,
+  Newspaper,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
 import { Card } from "@/components/ui/card";
 import { getSessionContext } from "@/lib/farm";
+import { getEconSnapshot } from "@/lib/outlook/econ-ingest";
+import { REPORT_LABEL, type EconBundle, type EconFrame } from "@/lib/outlook/econ-types";
 import { getSourcesSnapshot } from "@/lib/outlook/ingest";
 import { NASS_ATTRIBUTION } from "@/lib/outlook/sources";
 import type { Crop } from "@/lib/types/database";
@@ -25,8 +33,12 @@ export default async function OutlookSourcesPage() {
   if (!user) redirect("/sign-in");
   if (farms.length === 0) redirect("/onboarding");
 
-  const { news, reports, newsFetchedAt, reportsFetchedAt } =
-    await getSourcesSnapshot();
+  const [{ news, reports, newsFetchedAt, reportsFetchedAt }, econ] =
+    await Promise.all([getSourcesSnapshot(), getEconSnapshot()]);
+
+  const supply = [...econ.bundles].sort(
+    (a, b) => a.crop.localeCompare(b.crop) || a.reportType.localeCompare(b.reportType),
+  );
 
   const bundles = [...reports].sort(
     (a, b) =>
@@ -46,6 +58,65 @@ export default async function OutlookSourcesPage() {
         <span className="font-medium text-[var(--accent)]">Internal</span> · live
         ingestion preview. USDA reports refresh daily, news a few times a day.
       </div>
+
+      {/* ── Supply (Phase A: WASDE / Grain Stocks / Acreage) ──────────────── */}
+      <section className="mb-8">
+        <SectionHeader
+          icon={<Layers className="size-4 text-[var(--accent)]" />}
+          title="USDA Supply — WASDE, Grain Stocks, Acreage"
+          meta={`${supply.length} reports · ${fmtAgo(econ.fetchedAt)}`}
+        />
+        {supply.length === 0 ? (
+          <Empty>No supply data cached yet.</Empty>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {supply.map((b) => (
+              <SupplyCard key={`${b.reportType}-${b.crop}`} b={b} />
+            ))}
+          </div>
+        )}
+        <p className="text-text-tertiary mt-3 text-[11px] leading-relaxed">
+          Every figure carries its reference frames (Δ month, Δ year, stocks-to-use),
+          computed at ingestion. {NASS_ATTRIBUTION}
+        </p>
+      </section>
+
+      {/* ── Report calendar ───────────────────────────────────────────────── */}
+      <section className="mb-8">
+        <SectionHeader
+          icon={<CalendarClock className="size-4 text-[var(--accent)]" />}
+          title="Report Calendar — next market-movers"
+          meta={`${econ.upcoming.length} upcoming`}
+        />
+        {econ.upcoming.length === 0 ? (
+          <Empty>Calendar unavailable.</Empty>
+        ) : (
+          <Card className="divide-border/60 divide-y p-0">
+            {econ.upcoming.map((e) => (
+              <div
+                key={`${e.reportType}-${e.releaseDate}`}
+                className="flex items-center gap-3 px-4 py-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-foreground text-sm">{e.description}</div>
+                  <div className="text-text-tertiary tnum text-[11px]">
+                    {e.releaseDate}
+                  </div>
+                </div>
+                <span
+                  className={cnCountdown(e.daysUntil)}
+                >
+                  {e.daysUntil === 0
+                    ? "today"
+                    : e.daysUntil === 1
+                      ? "tomorrow"
+                      : `in ${e.daysUntil}d`}
+                </span>
+              </div>
+            ))}
+          </Card>
+        )}
+      </section>
 
       {/* ── USDA NASS ─────────────────────────────────────────────────────── */}
       <section className="mb-8">
@@ -121,6 +192,94 @@ export default async function OutlookSourcesPage() {
       </section>
     </div>
   );
+}
+
+function SupplyCard({ b }: { b: EconBundle }) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
+          {CROP_LABEL[b.crop]} · {REPORT_LABEL[b.reportType]} · {b.marketingYear}
+        </span>
+        {b.sourceUrl && (
+          <a
+            href={b.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-text-tertiary hover:text-[var(--accent)] shrink-0"
+            title="USDA source"
+          >
+            <ExternalLink className="size-3" />
+          </a>
+        )}
+      </div>
+      <ul className="mt-2.5 space-y-2">
+        {b.frames.map((f, i) => (
+          <FrameRow key={i} f={f} />
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function FrameRow({ f }: { f: EconFrame }) {
+  return (
+    <li className="border-border/40 border-b pb-1.5 last:border-0 last:pb-0">
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="text-text-secondary">{f.metric}</span>
+        <span className="flex items-baseline gap-1">
+          <span className="tnum text-foreground font-medium">
+            {f.value != null ? fmtValue(f.value) : "—"}
+          </span>
+          <span className="text-text-tertiary text-[10px]">{f.unit}</span>
+        </span>
+      </div>
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]">
+        {f.deltaPrior != null && (
+          <FrameChip
+            label={f.priorLabel ? `vs ${f.priorLabel}` : "Δ prior"}
+            v={f.deltaPrior}
+          />
+        )}
+        {f.deltaYear != null && <FrameChip label="Δ year" v={f.deltaYear} />}
+        {f.stocksToUse != null && (
+          <span className="text-text-tertiary tnum">
+            stocks/use {f.stocksToUse}%
+          </span>
+        )}
+        {!f.expectationAvailable && (
+          <span className="text-text-tertiary italic">exp. not tracked</span>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function FrameChip({ label, v }: { label: string; v: number }) {
+  const up = v > 0;
+  const flat = v === 0;
+  return (
+    <span
+      className={
+        flat
+          ? "text-text-tertiary tnum"
+          : up
+            ? "tnum text-[var(--pos)]"
+            : "tnum text-[var(--neg)]"
+      }
+    >
+      {label} {v > 0 ? "+" : ""}
+      {fmtValue(v)}
+    </span>
+  );
+}
+
+function cnCountdown(days: number): string {
+  const base =
+    "tnum shrink-0 rounded px-2 py-0.5 text-[11px] font-medium tabular-nums ";
+  if (days <= 3)
+    return base + "bg-[var(--accent)]/15 text-[var(--accent)]";
+  return base + "bg-bg-elevated text-text-secondary";
 }
 
 function ReportCard({ b }: { b: ReportBundle }) {

@@ -13,6 +13,8 @@ import { CROP_LABEL, CROP_TO_SYMBOL } from "@/lib/markets/symbols";
 import type { Crop } from "@/lib/types/database";
 
 import { readLatestOutlookV2, readNewsItems, readReportBundles, writeOutlookV2 } from "./cache";
+import { getEconSnapshot, type UpcomingReport } from "./econ-ingest";
+import { REPORT_LABEL, type EconBundle, type EconFrame } from "./econ-types";
 import { NASS_ATTRIBUTION } from "./sources";
 import type { NewsItem, ReportBundle } from "./types";
 
@@ -53,7 +55,7 @@ const SYSTEM = `You are the market-outlook analyst for Furrow, a tool for U.S. c
 
 Record your read by calling the record_market_read tool. Follow these rules without exception.
 
-1. GROUNDING. Reason ONLY over the corpus provided in the user message. Every factor MUST cite a real source_id that appears in the corpus (e.g. U1, N3, P1). If a claim is not backed by a corpus item, do not make it. Never invent or estimate numbers, prices, percentages, bushel figures, quotes, or report results. The ONLY authoritative figures are the USDA [U#] items — do not quote numeric figures from news items, treat those as soft qualitative context.
+1. GROUNDING. Reason ONLY over the corpus provided in the user message. Every factor MUST cite a real source_id that appears in the corpus (e.g. U1, S2, N3, P1). If a claim is not backed by a corpus item, do not make it. Never invent or estimate numbers, prices, percentages, bushel figures, quotes, or report results. The ONLY authoritative figures are the USDA [U#] items — do not quote numeric figures from news items, treat those as soft qualitative context.
 
 2. CONDITION-RATING HUMILITY. Crop condition ratings (the % good/excellent) reflect CURRENT MARKET SENTIMENT, not future yield. They are weak yield predictors, especially early in the season, and they swing — e.g. Illinois ratings fell sharply in June 2023 and then recovered, with yields fine. When a factor rests on condition ratings, treat them as "what the market is reacting to right now," explicitly NOT as a yield forecast, and say so in the factor text. Never translate a condition rating into a yield or price prediction.
 
@@ -62,6 +64,8 @@ Record your read by calling the record_market_read tool. Follow these rules with
 4. HONEST ON THIN DATA. Your read is only as good as the corpus. If it is sparse, stale, or the items don't clearly point anywhere, say so plainly ("limited new information this week") and lean "mixed" rather than manufacture a confident story. Do not overstate. Reporting uncertainty honestly is correct and valued.
 
 5. FACT vs INTERPRETATION. Within each factor, separate what was reported from what it may mean. State the fact first (e.g. "USDA reports U.S. corn 68% good/excellent"), then a qualified interpretation (e.g. "— a level the market has read as comfortable supply, which is sentiment, not a yield call"). Keep interpretation tentative.
+
+6. SURPRISE, NOT LEVEL (for WASDE / Grain Stocks / supply figures, marked [S#]). Markets move on the gap between the actual number and what the trade EXPECTED — not the level itself. When a factor rests on a supply figure, frame it as a CHANGE (use the provided Δ-month, Δ-year, and stocks-to-use frames), and state explicitly that its market impact depends on how it compared to trade expectations, which we do NOT track. NEVER assert "low stocks = bullish" or "big crop = bearish" on the level alone. A tightening or loosening picture is context the farmer weighs — not a verdict. Early-season production rests on a TREND-yield assumption (USDA's own words), not a measured yield — say so when it drives a factor.
 
 OUTPUT:
 - signal: the three-state relative lean defined above.
@@ -178,6 +182,23 @@ async function assembleCorpus(
   if (u === 0) lines.push("(no USDA data cached for this crop)");
   lines.push("");
 
+  // 1b. USDA SUPPLY — WASDE balance sheet + Grain Stocks + Acreage, reference-framed
+  const econ = await getEconSnapshot();
+  const supply = econ.bundles.filter((b) => b.crop === crop);
+  lines.push(
+    "=== USDA SUPPLY DATA (WASDE / Grain Stocks / Acreage — official; reason from the FRAMES not raw levels, see rule 6) ===",
+  );
+  let s = 0;
+  for (const b of supply) {
+    s += 1;
+    const id = `S${s}`;
+    const label = `USDA ${REPORT_LABEL[b.reportType]} (${b.marketingYear})`;
+    lines.push(`[${id}] ${label} — ${b.frames.map(fmtFrame).join("; ")}`);
+    sources.set(id, { id, label, url: b.sourceUrl || null });
+  }
+  if (supply.length === 0) lines.push("(no supply data cached yet)");
+  lines.push("");
+
   // 2. Price & basis — reuse the markets service
   const symbol = CROP_TO_SYMBOL[crop];
   const history = await getFuturesHistory(symbol, now);
@@ -222,6 +243,12 @@ async function assembleCorpus(
     sources.set(id, { id, label: `${n.source} · ${fmtDay(n.publishedAt)}`, url: n.link });
   });
   if (news.length === 0) lines.push("(no recent news cached for this crop)");
+  lines.push("");
+
+  // 4. Upcoming USDA reports — context for watch_items (not a citable source)
+  lines.push("=== UPCOMING USDA REPORTS (for watch_items; cite the event name) ===");
+  if (econ.upcoming.length === 0) lines.push("(calendar unavailable)");
+  for (const e of econ.upcoming) lines.push(`- ${fmtUpcoming(e)}`);
 
   const newsThrough = news
     .map((n) => n.publishedAt)
@@ -238,9 +265,37 @@ async function assembleCorpus(
       newsThrough: newsThrough ?? null,
       priceTrend: dir,
     },
-    hash: hashCorpus(crop, reports, news, dir),
+    hash: hashCorpus(crop, reports, news, dir, supply),
     sampleData,
   };
+}
+
+function fmtFrame(f: EconFrame): string {
+  const u = f.unit === "$/bu" ? "" : ` ${f.unit}`;
+  const parts: string[] = [`${f.value ?? "—"}${u}`];
+  if (f.deltaPrior != null)
+    parts.push(`Δprior ${signed(f.deltaPrior)} (${f.priorLabel} ${f.priorValue})`);
+  if (f.deltaYear != null)
+    parts.push(`Δyear ${signed(f.deltaYear)} (${f.priorYearLabel} ${f.priorYearValue})`);
+  if (f.stocksToUse != null) parts.push(`stocks-to-use ${f.stocksToUse}%`);
+  let out = `${f.metric}: ${parts.join(", ")}`;
+  if (!f.expectationAvailable) out += " [trade expectations: not tracked]";
+  if (f.note) out += ` — ${f.note}`;
+  return out;
+}
+
+function fmtUpcoming(e: UpcomingReport): string {
+  const when =
+    e.daysUntil === 0
+      ? "today"
+      : e.daysUntil === 1
+        ? "tomorrow"
+        : `in ${e.daysUntil} days`;
+  return `${e.description} — ${e.releaseDate} (${when})`;
+}
+
+function signed(n: number): string {
+  return n > 0 ? `+${n}` : `${n}`;
 }
 
 /**
@@ -254,6 +309,7 @@ function hashCorpus(
   reports: ReportBundle[],
   news: NewsItem[],
   dir: string,
+  supply: EconBundle[],
 ): string {
   const usda = reports
     .map(
@@ -263,7 +319,12 @@ function hashCorpus(
     .sort()
     .join("|");
   const links = news.map((n) => n.link).sort().join("|");
-  const canonical = `${crop}::${usda}::${links}::${dir}`;
+  // a new WASDE/Stocks/Acreage release (new released_at or changed values) flips the hash
+  const econ = supply
+    .map((b) => `${b.reportType}:${b.releasedAt}:${b.frames.map((f) => `${f.metric}=${f.value}`).join(",")}`)
+    .sort()
+    .join("|");
+  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}`;
   return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 

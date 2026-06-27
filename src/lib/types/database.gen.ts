@@ -689,6 +689,60 @@ export type Database = {
         }
         Relationships: []
       }
+      report_calendar: {
+        Row: {
+          description: string
+          id: string
+          release_date: string
+          report_type: string
+        }
+        Insert: {
+          description: string
+          id?: string
+          release_date: string
+          report_type: string
+        }
+        Update: {
+          description?: string
+          id?: string
+          release_date?: string
+          report_type?: string
+        }
+        Relationships: []
+      }
+      usda_econ_cache: {
+        Row: {
+          crop: Database["public"]["Enums"]["crop"]
+          fetched_at: string
+          id: string
+          marketing_year: string
+          payload: Json
+          released_at: string
+          report_type: string
+          source_url: string | null
+        }
+        Insert: {
+          crop: Database["public"]["Enums"]["crop"]
+          fetched_at?: string
+          id?: string
+          marketing_year: string
+          payload: Json
+          released_at: string
+          report_type: string
+          source_url?: string | null
+        }
+        Update: {
+          crop?: Database["public"]["Enums"]["crop"]
+          fetched_at?: string
+          id?: string
+          marketing_year?: string
+          payload?: Json
+          released_at?: string
+          report_type?: string
+          source_url?: string | null
+        }
+        Relationships: []
+      }
       usda_reports_cache: {
         Row: {
           crop: Database["public"]["Enums"]["crop"]
