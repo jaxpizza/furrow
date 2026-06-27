@@ -3,6 +3,7 @@ import {
   ArrowUpRight,
   ExternalLink,
   Eye,
+  Globe,
   Info,
   Minus,
   Sparkles,
@@ -11,8 +12,61 @@ import {
 import { Card } from "@/components/ui/card";
 import { Explainer } from "@/components/common/explainer";
 import { SignalBadge } from "@/components/common/signal-badge";
-import type { OutlookFactorV2, OutlookV2 } from "@/lib/outlook/synthesis";
+import type {
+  MacroContextItem,
+  OutlookFactorV2,
+  OutlookV2,
+} from "@/lib/outlook/synthesis";
 import { cn } from "@/lib/utils";
+
+function MacroContextStrip({ items }: { items: MacroContextItem[] }) {
+  if (items.length === 0) return null;
+  const arrow = (d: MacroContextItem["direction"]) =>
+    d === "up" ? "↑" : d === "down" ? "↓" : "→";
+  const color = (d: MacroContextItem["direction"]) =>
+    d === "up"
+      ? "text-[var(--pos)]"
+      : d === "down"
+        ? "text-[var(--neg)]"
+        : "text-[var(--neutral)]";
+  return (
+    <div className="border-border/60 mt-1 border-t pt-3">
+      <div className="text-text-tertiary mb-2 flex items-center gap-1.5 text-[10px] font-medium tracking-wide uppercase">
+        <Globe className="size-3" />
+        Macro context
+        <span className="text-text-tertiary/70 normal-case tracking-normal">
+          · watched, not driving
+        </span>
+      </div>
+      <div className="grid gap-1.5 sm:grid-cols-3">
+        {items.map((m) => (
+          <div
+            key={m.key}
+            className="bg-bg-elevated/40 border-border/50 rounded-md border px-2.5 py-2"
+          >
+            <div className="text-text-tertiary text-[10px] tracking-wide uppercase">
+              {m.label}
+            </div>
+            <div className="mt-0.5 flex items-baseline gap-1.5">
+              <span className="tnum text-foreground text-sm font-medium">
+                {m.value}
+              </span>
+              <span className={cn("tnum text-[11px] font-medium", color(m.direction))}>
+                {arrow(m.direction)}
+              </span>
+            </div>
+            <div className="text-text-tertiary tnum mt-0.5 text-[10px] leading-snug">
+              {m.detail}
+            </div>
+            <div className="text-text-secondary mt-1 text-[10px] leading-snug">
+              {m.lean}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function FactorRow({ factor }: { factor: OutlookFactorV2 }) {
   const { direction, text, source } = factor;
@@ -118,6 +172,8 @@ export function OutlookCard({ outlook }: { outlook: OutlookV2 | null }) {
           <FactorRow key={i} factor={factor} />
         ))}
       </ul>
+
+      <MacroContextStrip items={outlook.macroContext ?? []} />
 
       {outlook.watchItems.length > 0 && (
         <div className="border-border/60 mt-1 border-t pt-3">

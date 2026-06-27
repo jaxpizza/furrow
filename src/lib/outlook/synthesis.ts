@@ -37,11 +37,28 @@ export type OutlookFactorV2 = {
   text: string;
   source: OutlookSource | null;
 };
+/**
+ * The always-visible macro backdrop — "watched but not driving." Built
+ * deterministically from the framed macro bundles (NOT the LLM), so it is
+ * present on every read regardless of whether macro cracked the main factors.
+ * Macro is PROMOTED into `factors` only when it is materially driving the read.
+ */
+export type MacroContextItem = {
+  key: "dollar" | "crude" | "macro_weather";
+  label: string;
+  value: string;
+  detail: string; // short trend phrase
+  direction: "up" | "down" | "neutral";
+  lean: string; // mild directional lean, one phrase
+};
+export type MacroContext = MacroContextItem[];
+
 export type OutlookV2 = {
   crop: Crop;
   signal: Signal;
   summary: string;
   factors: OutlookFactorV2[];
+  macroContext: MacroContext;
   watchItems: string[];
   freshness: {
     usdaWeek: string | null;
@@ -84,7 +101,10 @@ Record your read by calling the record_market_read tool. Follow these rules with
    - EXTREME positioning (a crowded trade — net position near the top or bottom of its multi-year range) is the signal, and it cuts BOTH ways. A near-record net-LONG means few buyers may be left to push higher → the market is vulnerable to a reversal DOWN; a near-record net-SHORT is the mirror (vulnerable to a short-covering rally UP). Present an extreme as a crowded trade that can reverse, i.e. positioning context — NOT a directional call. Lean the factor's direction toward the CONTRARIAN read at extremes, and say so plainly.
    - A NON-EXTREME (mid-range percentile) net position is a WEAK signal — note where funds are leaning and the week-over-week change, but do not over-read it; it is usually best marked neutral. Always state the percentile and that COT is positioning, not prediction.
 
-9. MACRO IS SECOND-ORDER — CONTEXT, NOT A LEAD (for dollar, crude, Corn Belt market weather, marked [X#]). Apply rule 7's direction chains (stated in each item): stronger dollar → export headwind → DOWN; weaker dollar → UP; crude up → ethanol/input support for corn → UP; below-normal Corn Belt moisture → supply risk → UP; ample moisture → mild DOWN. BUT weight these BELOW the core supply/demand fundamentals: dollar and crude are MEDIUM weight — a routine daily/weekly wiggle must NOT dominate or flip the read; mention them as context and lean lightly. The EXCEPTION is macro weather in the summer growing season (Jun–Aug), which is HIGH weight — a Corn Belt drought scare during pollination/pod-fill can lead the read regardless of any one farm; near-normal moisture, though, is not a story (mark it neutral). Always state the >7-day-forecast humility for weather. Do not let macro factors outnumber or outweigh supply/demand in the final lean.
+9. MACRO IS SECOND-ORDER — CONTEXT STRIP BY DEFAULT, PROMOTED TO A FACTOR ONLY WHEN DRIVING (for dollar, crude, Corn Belt market weather, marked [X#]). The macro backdrop is ALWAYS shown to the farmer in a separate, always-visible "macro context" strip (built for you — you do NOT emit it). Therefore your FACTORS list is reserved for what is actually DRIVING the read. Rules:
+   - DEFAULT: do NOT put macro in your factors. When dollar/crude/weather are minor or routine (a normal daily/weekly wiggle, near-normal moisture), leave them OUT of factors entirely — they are already visible in the strip. This keeps the factor list high-signal and fundamentals-led.
+   - PROMOTE a macro item INTO the factors ONLY when it is materially shaping the read: e.g. a Corn Belt DROUGHT during the summer pollination/pod-fill window (HIGH weight — can legitimately lead), or an accumulating multi-week dollar move that is genuinely bearing on export competitiveness alongside the export data. When you promote one, apply rule 7's stated direction chain (stronger dollar → export headwind → DOWN; crude up → ethanol/input support → UP; below-normal Corn Belt moisture → supply risk → UP) and explicitly label it second-order/medium-weight (except summer-weather drought, which may lead).
+   - NEVER let macro outnumber or outweigh supply/demand in the final lean. A routine dollar/crude wiggle must not flip the read. Near-normal moisture is never a factor (it lives only in the strip). Always carry the >7-day-forecast humility when weather is discussed.
 
 OUTPUT:
 - signal: the three-state relative lean defined above.
@@ -144,6 +164,7 @@ type Corpus = {
   contextText: string;
   sources: Map<string, OutlookSource>;
   freshness: OutlookV2["freshness"];
+  macroContext: MacroContext;
   hash: string;
   sampleData: boolean;
 };
@@ -268,7 +289,11 @@ async function assembleCorpus(
     sources.set(id, { id, label, url: b.sourceUrl || null });
   }
   if (macro.length === 0) lines.push("(no macro data cached yet)");
+  lines.push(
+    "(The macro backdrop above is ALSO shown to the farmer as an always-visible 'macro context' strip, separate from your factors. So include a macro [X#] item in your FACTORS only when it is MATERIALLY DRIVING this read per rule 9 — otherwise leave macro out of the factors; it is already visible in the strip.)",
+  );
   lines.push("");
+  const macroContext = buildMacroContext(macro);
 
   // 2. Price & basis — reuse the markets service
   const symbol = CROP_TO_SYMBOL[crop];
@@ -336,9 +361,62 @@ async function assembleCorpus(
       newsThrough: newsThrough ?? null,
       priceTrend: dir,
     },
+    macroContext,
     hash: hashCorpus(crop, reports, news, dir, supply, demand, cot, macro),
     sampleData,
   };
+}
+
+/** Deterministic macro backdrop for the always-visible context strip. */
+function buildMacroContext(macro: MacroBundle[]): MacroContext {
+  const out: MacroContext = [];
+  const byType = new Map(macro.map((b) => [b.signalType, b]));
+  const dollar = byType.get("dollar")?.frames[0];
+  if (dollar?.value != null) {
+    out.push({
+      key: "dollar",
+      label: "US Dollar (DXY)",
+      value: `${dollar.value}`,
+      detail: dollar.trend ?? "—",
+      direction: dollar.direction,
+      lean:
+        dollar.direction === "down"
+          ? "mild export headwind"
+          : dollar.direction === "up"
+            ? "mild export tailwind"
+            : "neutral for exports",
+    });
+  }
+  const crude = byType.get("crude")?.frames[0];
+  if (crude?.value != null) {
+    out.push({
+      key: "crude",
+      label: "Crude (WTI)",
+      value: `$${crude.value}`,
+      detail: crude.trend ?? "—",
+      direction: crude.direction,
+      lean:
+        crude.direction === "up"
+          ? "mild ethanol/input support"
+          : crude.direction === "down"
+            ? "softer ethanol/input pull"
+            : "neutral",
+    });
+  }
+  const wx = byType.get("macro_weather")?.frames[0];
+  if (wx?.value != null) {
+    const dry = typeof wx.value === "number" && wx.value < 75;
+    const wet = typeof wx.value === "number" && wx.value > 130;
+    out.push({
+      key: "macro_weather",
+      label: "Corn Belt rain",
+      value: `${wx.value}%`,
+      detail: `of normal · ${dry ? "dry" : wet ? "surplus" : "near-normal"}`,
+      direction: wx.direction,
+      lean: dry ? "drought-risk watch" : wet ? "ample moisture" : "no drought signal",
+    });
+  }
+  return out;
 }
 
 function fmtFrame(f: EconFrame): string {
@@ -562,6 +640,7 @@ async function generate(
       signal,
       summary: String(input.summary ?? "").trim(),
       factors,
+      macroContext: corpus.macroContext,
       watchItems,
       freshness: corpus.freshness,
       model: OUTLOOK_MODEL,
