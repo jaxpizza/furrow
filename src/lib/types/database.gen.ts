@@ -150,6 +150,36 @@ export type Database = {
           },
         ]
       }
+      cot_cache: {
+        Row: {
+          crop: Database["public"]["Enums"]["crop"]
+          fetched_at: string
+          id: string
+          payload: Json
+          released_at: string | null
+          report_date: string
+          source_url: string | null
+        }
+        Insert: {
+          crop: Database["public"]["Enums"]["crop"]
+          fetched_at?: string
+          id?: string
+          payload: Json
+          released_at?: string | null
+          report_date: string
+          source_url?: string | null
+        }
+        Update: {
+          crop?: Database["public"]["Enums"]["crop"]
+          fetched_at?: string
+          id?: string
+          payload?: Json
+          released_at?: string | null
+          report_date?: string
+          source_url?: string | null
+        }
+        Relationships: []
+      }
       elevator_basis: {
         Row: {
           basis: number | null

@@ -7,6 +7,7 @@ import {
   Layers,
   Newspaper,
   Ship,
+  TrendingUp,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -14,6 +15,8 @@ import { Card } from "@/components/ui/card";
 import { getSessionContext } from "@/lib/farm";
 import { getDemandSnapshot } from "@/lib/outlook/demand-ingest";
 import { DEMAND_LABEL, type DemandBundle, type DemandFrame } from "@/lib/outlook/demand-types";
+import { getCotSnapshot } from "@/lib/outlook/cot-ingest";
+import type { CotBundle } from "@/lib/outlook/cot-types";
 import { getEconSnapshot } from "@/lib/outlook/econ-ingest";
 import { REPORT_LABEL, type EconBundle, type EconFrame } from "@/lib/outlook/econ-types";
 import { getSourcesSnapshot } from "@/lib/outlook/ingest";
@@ -36,11 +39,12 @@ export default async function OutlookSourcesPage() {
   if (!user) redirect("/sign-in");
   if (farms.length === 0) redirect("/onboarding");
 
-  const [{ news, reports, newsFetchedAt, reportsFetchedAt }, econ, demandSnap] =
+  const [{ news, reports, newsFetchedAt, reportsFetchedAt }, econ, demandSnap, cotSnap] =
     await Promise.all([
       getSourcesSnapshot(),
       getEconSnapshot(),
       getDemandSnapshot(),
+      getCotSnapshot(),
     ]);
 
   const supply = [...econ.bundles].sort(
@@ -49,6 +53,7 @@ export default async function OutlookSourcesPage() {
   const demand = [...demandSnap.bundles].sort(
     (a, b) => a.crop.localeCompare(b.crop) || a.dataType.localeCompare(b.dataType),
   );
+  const cot = [...cotSnap.bundles].sort((a, b) => a.crop.localeCompare(b.crop));
 
   const bundles = [...reports].sort(
     (a, b) =>
@@ -151,6 +156,30 @@ export default async function OutlookSourcesPage() {
           Pace-vs-target is the headline frame (cumulative vs the WASDE annual
           target). A single weekly/monthly print is noisy — the pace and trend
           carry the signal.
+        </p>
+      </section>
+
+      {/* ── Money Flow (Phase C: CFTC Commitment of Traders) ──────────────── */}
+      <section className="mb-8">
+        <SectionHeader
+          icon={<TrendingUp className="size-4 text-[var(--accent)]" />}
+          title="Money Flow — Fund Positioning (CFTC COT)"
+          meta={`${cot.length} markets · ${fmtAgo(cotSnap.fetchedAt)}`}
+        />
+        {cot.length === 0 ? (
+          <Empty>No COT data cached yet — the CFTC feed may be unavailable.</Empty>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {cot.map((b) => (
+              <MoneyFlowCard key={b.crop} b={b} />
+            ))}
+          </div>
+        )}
+        <p className="text-text-tertiary mt-3 text-[11px] leading-relaxed">
+          Managed-Money net position ranked against its own multi-year history —
+          the percentile is the frame. Positioning, not prediction: an extreme
+          (crowded) reading is a contrarian risk that cuts both ways; a mid-range
+          reading is a weak signal.
         </p>
       </section>
 
@@ -300,6 +329,74 @@ function DemandFrameRow({ f }: { f: DemandFrame }) {
         )}
       </div>
     </li>
+  );
+}
+
+function MoneyFlowCard({ b }: { b: CotBundle }) {
+  const netClass =
+    b.net >= 0 ? "text-[var(--pos)]" : "text-[var(--neg)]";
+  return (
+    <Card className="p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
+          {CROP_LABEL[b.crop]} · Managed Money · {b.reportDate}
+        </span>
+        {b.sourceUrl && (
+          <a
+            href={b.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-text-tertiary hover:text-[var(--accent)] shrink-0"
+            title="CFTC source"
+          >
+            <ExternalLink className="size-3" />
+          </a>
+        )}
+      </div>
+
+      <div className="mt-2.5 flex items-baseline justify-between gap-3 text-sm">
+        <span className="text-text-secondary">Net position ({b.positioning})</span>
+        <span className={`tnum font-medium ${netClass}`}>
+          {b.net > 0 ? "+" : ""}
+          {fmtValue(b.net)}
+        </span>
+      </div>
+
+      {/* percentile bar — the headline frame */}
+      <div className="mt-2">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="text-text-tertiary">
+            {b.percentile}th pctile · {b.historyWeeks}-wk history
+          </span>
+          <span
+            className={
+              b.extreme
+                ? "tnum rounded bg-[var(--neg)]/12 px-1.5 font-medium text-[var(--neg)]"
+                : "tnum text-text-tertiary rounded bg-bg-elevated px-1.5"
+            }
+          >
+            {b.extreme ? `EXTREME — ${b.extreme}` : "mid-range · weak signal"}
+          </span>
+        </div>
+        <div className="bg-bg-elevated relative mt-1 h-1.5 overflow-hidden rounded-full">
+          <div
+            className={`absolute inset-y-0 left-0 rounded-full ${b.extreme ? "bg-[var(--neg)]" : "bg-[var(--accent)]"}`}
+            style={{ width: `${Math.max(2, Math.min(100, b.percentile))}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]">
+        {b.deltaPriorNet != null && <FrameChip label="Δ prior wk" v={b.deltaPriorNet} />}
+        {b.trendNet4w != null && <FrameChip label="~4wk" v={b.trendNet4w} />}
+        {b.openInterest != null && (
+          <span className="text-text-tertiary tnum">OI {fmtValue(b.openInterest)}</span>
+        )}
+      </div>
+      <p className="text-text-tertiary mt-2 text-[10px] leading-snug">
+        Positioning, not prediction — aggregated, self-classified data.
+      </p>
+    </Card>
   );
 }
 

@@ -13,6 +13,8 @@ import { CROP_LABEL, CROP_TO_SYMBOL } from "@/lib/markets/symbols";
 import type { Crop } from "@/lib/types/database";
 
 import { readLatestOutlookV2, readNewsItems, readReportBundles, writeOutlookV2 } from "./cache";
+import { getCotSnapshot } from "./cot-ingest";
+import type { CotBundle } from "./cot-types";
 import { getDemandSnapshot } from "./demand-ingest";
 import { DEMAND_LABEL, type DemandBundle, type DemandFrame } from "./demand-types";
 import { getEconSnapshot, type UpcomingReport } from "./econ-ingest";
@@ -75,6 +77,10 @@ Record your read by calling the record_market_read tool. Follow these rules with
    - STRONGER DEMAND is supportive → direction UP. (rising exports/China buying, higher crush, higher ethanol grind.)
    - WEAKER DEMAND is pressuring → direction DOWN. (falling exports, cancellations, lower crush/grind.)
    So "fewer intended corn acres year-over-year" is direction UP, not down. State the chain briefly inside the factor text, e.g. "fewer intended acres → less supply → supportive." This logic sets the sign; rules 2 and 6 still govern the humility (sentiment-not-yield, surprise-not-level, trend-yield) and keep the interpretation tentative — a supportive lean is context, never a price prediction.
+
+8. MONEY FLOW IS THE EXCEPTION TO RULE 7 — POSITIONING, NOT PREDICTION (for CFTC Commitment-of-Traders / Managed-Money figures, marked [M#]). This data is highly aggregated and self-classified by traders — CFTC's own caveat — so interpret with caution. Fund positioning is NOT a price forecast; it shows how speculators are currently leaning. Do NOT apply rule 7 here: never naively read "funds net long → up" or "net short → down." The frame is the PERCENTILE of the net position in its own history:
+   - EXTREME positioning (a crowded trade — net position near the top or bottom of its multi-year range) is the signal, and it cuts BOTH ways. A near-record net-LONG means few buyers may be left to push higher → the market is vulnerable to a reversal DOWN; a near-record net-SHORT is the mirror (vulnerable to a short-covering rally UP). Present an extreme as a crowded trade that can reverse, i.e. positioning context — NOT a directional call. Lean the factor's direction toward the CONTRARIAN read at extremes, and say so plainly.
+   - A NON-EXTREME (mid-range percentile) net position is a WEAK signal — note where funds are leaning and the week-over-week change, but do not over-read it; it is usually best marked neutral. Always state the percentile and that COT is positioning, not prediction.
 
 OUTPUT:
 - signal: the three-state relative lean defined above.
@@ -226,6 +232,23 @@ async function assembleCorpus(
     lines.push("(no demand data cached yet — sources may be temporarily unavailable)");
   lines.push("");
 
+  // 1d. MONEY FLOW — CFTC Managed-Money positioning; percentile is the frame (rule 8)
+  const cotSnap = await getCotSnapshot();
+  const cot = cotSnap.bundles.filter((b) => b.crop === crop);
+  lines.push(
+    "=== MONEY FLOW / FUND POSITIONING (CFTC Commitment of Traders, Managed Money — POSITIONING not prediction; reason from the PERCENTILE per rule 8; extremes are contrarian, mid-range is weak) ===",
+  );
+  let mfi = 0;
+  for (const b of cot) {
+    mfi += 1;
+    const id = `M${mfi}`;
+    const label = `CFTC COT Managed Money (report ${b.reportDate})`;
+    lines.push(`[${id}] ${label} — ${fmtCot(b)}`);
+    sources.set(id, { id, label, url: b.sourceUrl || null });
+  }
+  if (cot.length === 0) lines.push("(no COT data cached yet)");
+  lines.push("");
+
   // 2. Price & basis — reuse the markets service
   const symbol = CROP_TO_SYMBOL[crop];
   const history = await getFuturesHistory(symbol, now);
@@ -292,7 +315,7 @@ async function assembleCorpus(
       newsThrough: newsThrough ?? null,
       priceTrend: dir,
     },
-    hash: hashCorpus(crop, reports, news, dir, supply, demand),
+    hash: hashCorpus(crop, reports, news, dir, supply, demand, cot),
     sampleData,
   };
 }
@@ -309,6 +332,22 @@ function fmtFrame(f: EconFrame): string {
   if (!f.expectationAvailable) out += " [trade expectations: not tracked]";
   if (f.note) out += ` — ${f.note}`;
   return out;
+}
+
+function fmtCot(b: CotBundle): string {
+  const parts: string[] = [
+    `Managed Money ${b.positioning} ${signed(b.net)} contracts (long ${b.long} / short ${b.short})`,
+    `percentile ${b.percentile}th of ${b.historyWeeks}wk history (range ${b.histLow}…${b.histHigh})`,
+  ];
+  parts.push(
+    b.extreme
+      ? `EXTREME — ${b.extreme} (crowded trade; contrarian risk of reversal the OTHER way)`
+      : "mid-range — NOT extreme, weak signal, do not over-read",
+  );
+  if (b.deltaPriorNet != null) parts.push(`Δprior week ${signed(b.deltaPriorNet)}`);
+  if (b.trendNet4w != null) parts.push(`~4wk trend ${signed(b.trendNet4w)}`);
+  if (b.openInterest != null) parts.push(`open interest ${b.openInterest}`);
+  return `${parts.join("; ")}. COT is aggregated + self-classified — positioning, not prediction.`;
 }
 
 function fmtDemandFrame(f: DemandFrame): string {
@@ -351,6 +390,7 @@ function hashCorpus(
   dir: string,
   supply: EconBundle[],
   demand: DemandBundle[],
+  cot: CotBundle[],
 ): string {
   const usda = reports
     .map(
@@ -369,7 +409,11 @@ function hashCorpus(
     .map((b) => `${b.dataType}:${b.period}:${b.frames.map((f) => `${f.metric}=${f.value}`).join(",")}`)
     .sort()
     .join("|");
-  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}`;
+  const mf = cot
+    .map((b) => `${b.crop}:${b.reportDate}:${b.net}:${b.percentile}`)
+    .sort()
+    .join("|");
+  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}::${mf}`;
   return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 
