@@ -14,7 +14,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 
-import { acresFromPolygon, bboxOfPolygon } from "@/lib/geo";
+import { acresFromPolygon, bboxOfPolygon, bboxOfPolygons } from "@/lib/geo";
 import type { MapField } from "@/lib/fields";
 
 import { DRAW_STYLES } from "./draw-styles";
@@ -125,11 +125,25 @@ export const FieldMap = forwardRef<FieldMapHandle, Props>(function FieldMap(
     if (mapRef.current || !containerRef.current) return;
     mapboxgl.accessToken = token;
 
+    // Open already framed on the farm's mapped acreage. A single field centers
+    // at a close zoom; many fields are fit together. With no fields yet, fall
+    // back to the central-IL starting view + the "draw your first field" prompt.
+    const initialBbox = bboxOfPolygons(
+      fieldsRef.current.map((f) => f.geom),
+    );
+
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: CENTRAL_IL,
-      zoom: START_ZOOM,
+      ...(initialBbox
+        ? {
+            bounds: [
+              [initialBbox[0], initialBbox[1]],
+              [initialBbox[2], initialBbox[3]],
+            ] as [[number, number], [number, number]],
+            fitBoundsOptions: { padding: 80, maxZoom: 15 },
+          }
+        : { center: CENTRAL_IL, zoom: START_ZOOM }),
       attributionControl: false,
       logoPosition: "bottom-right",
     });

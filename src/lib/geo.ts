@@ -48,3 +48,23 @@ export function bboxOfPolygon(poly: Polygon): [number, number, number, number] {
   }
   return [minLng, minLat, maxLng, maxLat];
 }
+
+/** Union bounding box of several polygons (e.g. all of a farm's fields), or null
+ *  when there are none. Used to fit the map to a farm's mapped acreage on load. */
+export function bboxOfPolygons(
+  polys: Polygon[],
+): [number, number, number, number] | null {
+  if (polys.length === 0) return null;
+  let minLng = Infinity,
+    minLat = Infinity,
+    maxLng = -Infinity,
+    maxLat = -Infinity;
+  for (const p of polys) {
+    const [a, b, c, d] = bboxOfPolygon(p);
+    if (a < minLng) minLng = a;
+    if (b < minLat) minLat = b;
+    if (c > maxLng) maxLng = c;
+    if (d > maxLat) maxLat = d;
+  }
+  return [minLng, minLat, maxLng, maxLat];
+}

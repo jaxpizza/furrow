@@ -115,6 +115,7 @@ export default async function MarketsPage({
           source={futuresSource}
           delta={delta}
           breakeven={{ effective: effectiveBE, profitTargetPrice }}
+          basisAge={basisAge(cash.basisUpdatedAt, now)}
         />
 
         <FuturesStrip
@@ -144,4 +145,30 @@ export default async function MarketsPage({
       </div>
     </div>
   );
+}
+
+// Basis age, computed server-side so the relative label is hydration-safe. A
+// manual basis goes stale; we surface how long ago it was set and flag it after
+// ~2 weeks so the farmer can refresh it.
+const BASIS_STALE_DAYS = 14;
+
+function basisAge(
+  updatedAt: string | null,
+  now: Date,
+): { label: string; stale: boolean } | null {
+  if (!updatedAt) return null;
+  const t = Date.parse(updatedAt);
+  if (!Number.isFinite(t)) return null;
+  const days = Math.floor((now.getTime() - t) / 86_400_000);
+  return { label: relDays(days), stale: days >= BASIS_STALE_DAYS };
+}
+
+function relDays(days: number): string {
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 14) return `${days} days ago`;
+  if (days < 60) return `${Math.round(days / 7)} weeks ago`;
+  if (days < 365) return `${Math.round(days / 30)} months ago`;
+  const y = Math.round(days / 365);
+  return `${y} year${y === 1 ? "" : "s"} ago`;
 }

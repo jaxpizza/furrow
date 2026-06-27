@@ -52,6 +52,7 @@ export class ManualBasisCashProvider implements CashBidProvider {
       crop,
       cashPrice,
       basisCents,
+      basisUpdatedAt: stored?.updated_at ?? null,
       elevatorName: stored?.elevator_name ?? null,
       futuresRef,
       source: hasBasis ? this.name : "sample-basis",

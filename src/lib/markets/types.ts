@@ -56,6 +56,8 @@ export type CashPrice = {
   cashPrice: number | null;
   /** the farmer's basis in cents (may be negative). null when unset. */
   basisCents: number | null;
+  /** when the farmer last set/updated their basis (ISO). null for sample basis. */
+  basisUpdatedAt: string | null;
   elevatorName: string | null;
   /** the futures leg the cash price is built on. */
   futuresRef: {
