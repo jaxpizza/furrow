@@ -16,6 +16,8 @@ import { readLatestOutlookV2, readNewsItems, readReportBundles, writeOutlookV2 }
 import { getCotSnapshot } from "./cot-ingest";
 import type { CotBundle } from "./cot-types";
 import { getDemandSnapshot } from "./demand-ingest";
+import { getMacroSnapshot } from "./macro-ingest";
+import { MACRO_LABEL, type MacroBundle, type MacroFrame } from "./macro-types";
 import { DEMAND_LABEL, type DemandBundle, type DemandFrame } from "./demand-types";
 import { getEconSnapshot, type UpcomingReport } from "./econ-ingest";
 import { REPORT_LABEL, type EconBundle, type EconFrame } from "./econ-types";
@@ -81,6 +83,8 @@ Record your read by calling the record_market_read tool. Follow these rules with
 8. MONEY FLOW IS THE EXCEPTION TO RULE 7 — POSITIONING, NOT PREDICTION (for CFTC Commitment-of-Traders / Managed-Money figures, marked [M#]). This data is highly aggregated and self-classified by traders — CFTC's own caveat — so interpret with caution. Fund positioning is NOT a price forecast; it shows how speculators are currently leaning. Do NOT apply rule 7 here: never naively read "funds net long → up" or "net short → down." The frame is the PERCENTILE of the net position in its own history:
    - EXTREME positioning (a crowded trade — net position near the top or bottom of its multi-year range) is the signal, and it cuts BOTH ways. A near-record net-LONG means few buyers may be left to push higher → the market is vulnerable to a reversal DOWN; a near-record net-SHORT is the mirror (vulnerable to a short-covering rally UP). Present an extreme as a crowded trade that can reverse, i.e. positioning context — NOT a directional call. Lean the factor's direction toward the CONTRARIAN read at extremes, and say so plainly.
    - A NON-EXTREME (mid-range percentile) net position is a WEAK signal — note where funds are leaning and the week-over-week change, but do not over-read it; it is usually best marked neutral. Always state the percentile and that COT is positioning, not prediction.
+
+9. MACRO IS SECOND-ORDER — CONTEXT, NOT A LEAD (for dollar, crude, Corn Belt market weather, marked [X#]). Apply rule 7's direction chains (stated in each item): stronger dollar → export headwind → DOWN; weaker dollar → UP; crude up → ethanol/input support for corn → UP; below-normal Corn Belt moisture → supply risk → UP; ample moisture → mild DOWN. BUT weight these BELOW the core supply/demand fundamentals: dollar and crude are MEDIUM weight — a routine daily/weekly wiggle must NOT dominate or flip the read; mention them as context and lean lightly. The EXCEPTION is macro weather in the summer growing season (Jun–Aug), which is HIGH weight — a Corn Belt drought scare during pollination/pod-fill can lead the read regardless of any one farm; near-normal moisture, though, is not a story (mark it neutral). Always state the >7-day-forecast humility for weather. Do not let macro factors outnumber or outweigh supply/demand in the final lean.
 
 OUTPUT:
 - signal: the three-state relative lean defined above.
@@ -249,6 +253,23 @@ async function assembleCorpus(
   if (cot.length === 0) lines.push("(no COT data cached yet)");
   lines.push("");
 
+  // 1e. MACRO — dollar, crude, Corn Belt market weather; second-order (rule 9)
+  const macroSnap = await getMacroSnapshot();
+  const macro = macroSnap.bundles;
+  lines.push(
+    "=== MACRO / CONTEXT (US dollar, crude oil, Corn Belt market weather — SECOND-ORDER signals per rule 9; dollar/crude are MEDIUM weight and must not dominate; macro weather is HIGH in the summer growing season) ===",
+  );
+  let x = 0;
+  for (const b of macro) {
+    x += 1;
+    const id = `X${x}`;
+    const label = `${MACRO_LABEL[b.signalType]} (${b.weight} weight)`;
+    lines.push(`[${id}] ${label} — ${b.frames.map(fmtMacroFrame).join("; ")}`);
+    sources.set(id, { id, label, url: b.sourceUrl || null });
+  }
+  if (macro.length === 0) lines.push("(no macro data cached yet)");
+  lines.push("");
+
   // 2. Price & basis — reuse the markets service
   const symbol = CROP_TO_SYMBOL[crop];
   const history = await getFuturesHistory(symbol, now);
@@ -315,7 +336,7 @@ async function assembleCorpus(
       newsThrough: newsThrough ?? null,
       priceTrend: dir,
     },
-    hash: hashCorpus(crop, reports, news, dir, supply, demand, cot),
+    hash: hashCorpus(crop, reports, news, dir, supply, demand, cot, macro),
     sampleData,
   };
 }
@@ -330,6 +351,17 @@ function fmtFrame(f: EconFrame): string {
   if (f.stocksToUse != null) parts.push(`stocks-to-use ${f.stocksToUse}%`);
   let out = `${f.metric}: ${parts.join(", ")}`;
   if (!f.expectationAvailable) out += " [trade expectations: not tracked]";
+  if (f.note) out += ` — ${f.note}`;
+  return out;
+}
+
+function fmtMacroFrame(f: MacroFrame): string {
+  const parts: string[] = [`${f.label} ${f.value ?? "—"} ${f.unit}`];
+  if (f.deltaPrior != null)
+    parts.push(`Δprior ${signed(f.deltaPrior)}${f.deltaPriorPct != null ? ` (${signed(f.deltaPriorPct)}%)` : ""}`);
+  if (f.trend) parts.push(f.trend);
+  parts.push(`direction ${f.direction.toUpperCase()} [${f.chain}]`);
+  let out = parts.join("; ");
   if (f.note) out += ` — ${f.note}`;
   return out;
 }
@@ -391,6 +423,7 @@ function hashCorpus(
   supply: EconBundle[],
   demand: DemandBundle[],
   cot: CotBundle[],
+  macro: MacroBundle[],
 ): string {
   const usda = reports
     .map(
@@ -413,7 +446,11 @@ function hashCorpus(
     .map((b) => `${b.crop}:${b.reportDate}:${b.net}:${b.percentile}`)
     .sort()
     .join("|");
-  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}::${mf}`;
+  const mac = macro
+    .map((b) => `${b.signalType}:${b.asOf}:${b.frames.map((f) => `${f.value}:${f.direction}`).join(",")}`)
+    .sort()
+    .join("|");
+  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}::${mf}::${mac}`;
   return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 

@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Database,
   ExternalLink,
+  Globe,
   Layers,
   Newspaper,
   Ship,
@@ -18,6 +19,8 @@ import { DEMAND_LABEL, type DemandBundle, type DemandFrame } from "@/lib/outlook
 import { getCotSnapshot } from "@/lib/outlook/cot-ingest";
 import type { CotBundle } from "@/lib/outlook/cot-types";
 import { getEconSnapshot } from "@/lib/outlook/econ-ingest";
+import { getMacroSnapshot } from "@/lib/outlook/macro-ingest";
+import { MACRO_LABEL, type MacroBundle, type MacroFrame } from "@/lib/outlook/macro-types";
 import { REPORT_LABEL, type EconBundle, type EconFrame } from "@/lib/outlook/econ-types";
 import { getSourcesSnapshot } from "@/lib/outlook/ingest";
 import { NASS_ATTRIBUTION } from "@/lib/outlook/sources";
@@ -39,12 +42,13 @@ export default async function OutlookSourcesPage() {
   if (!user) redirect("/sign-in");
   if (farms.length === 0) redirect("/onboarding");
 
-  const [{ news, reports, newsFetchedAt, reportsFetchedAt }, econ, demandSnap, cotSnap] =
+  const [{ news, reports, newsFetchedAt, reportsFetchedAt }, econ, demandSnap, cotSnap, macroSnap] =
     await Promise.all([
       getSourcesSnapshot(),
       getEconSnapshot(),
       getDemandSnapshot(),
       getCotSnapshot(),
+      getMacroSnapshot(),
     ]);
 
   const supply = [...econ.bundles].sort(
@@ -54,6 +58,10 @@ export default async function OutlookSourcesPage() {
     (a, b) => a.crop.localeCompare(b.crop) || a.dataType.localeCompare(b.dataType),
   );
   const cot = [...cotSnap.bundles].sort((a, b) => a.crop.localeCompare(b.crop));
+  const macroOrder = { macro_weather: 0, dollar: 1, crude: 2 } as const;
+  const macro = [...macroSnap.bundles].sort(
+    (a, b) => (macroOrder[a.signalType] ?? 9) - (macroOrder[b.signalType] ?? 9),
+  );
 
   const bundles = [...reports].sort(
     (a, b) =>
@@ -180,6 +188,30 @@ export default async function OutlookSourcesPage() {
           the percentile is the frame. Positioning, not prediction: an extreme
           (crowded) reading is a contrarian risk that cuts both ways; a mid-range
           reading is a weak signal.
+        </p>
+      </section>
+
+      {/* ── Macro (Phase D: dollar / crude / Corn Belt weather) ───────────── */}
+      <section className="mb-8">
+        <SectionHeader
+          icon={<Globe className="size-4 text-[var(--accent)]" />}
+          title="Macro — Dollar, Crude, Corn Belt Weather"
+          meta={`${macro.length} signals · ${fmtAgo(macroSnap.fetchedAt)}`}
+        />
+        {macro.length === 0 ? (
+          <Empty>No macro data cached yet — a source may be unavailable.</Empty>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-3">
+            {macro.map((b) => (
+              <MacroCard key={b.signalType} b={b} />
+            ))}
+          </div>
+        )}
+        <p className="text-text-tertiary mt-3 text-[11px] leading-relaxed">
+          Second-order context. Dollar and crude are MEDIUM weight — they color
+          the read, they don&apos;t lead it. Corn Belt market weather spikes to
+          HIGH in the summer growing season; forecasts beyond ~7 days are
+          low-confidence.
         </p>
       </section>
 
@@ -329,6 +361,59 @@ function DemandFrameRow({ f }: { f: DemandFrame }) {
         )}
       </div>
     </li>
+  );
+}
+
+function MacroCard({ b }: { b: MacroBundle }) {
+  const f: MacroFrame | undefined = b.frames[0];
+  const dirChip =
+    f?.direction === "up"
+      ? "rounded bg-[var(--pos)]/12 px-1.5 text-[var(--pos)]"
+      : f?.direction === "down"
+        ? "rounded bg-[var(--neg)]/12 px-1.5 text-[var(--neg)]"
+        : "rounded bg-bg-elevated px-1.5 text-text-tertiary";
+  return (
+    <Card className="p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
+          {MACRO_LABEL[b.signalType]}
+        </span>
+        {b.sourceUrl && (
+          <a
+            href={b.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-text-tertiary hover:text-[var(--accent)] shrink-0"
+            title="Source"
+          >
+            <ExternalLink className="size-3" />
+          </a>
+        )}
+      </div>
+      {f && (
+        <>
+          <div className="mt-2 flex items-baseline justify-between gap-2">
+            <span className="flex items-baseline gap-1">
+              <span className="tnum text-foreground text-lg font-medium">
+                {f.value != null ? fmtValue(f.value) : "—"}
+              </span>
+              <span className="text-text-tertiary text-[10px]">{f.unit}</span>
+            </span>
+            <span className={`tnum text-[10px] font-medium uppercase ${dirChip}`}>
+              {f.direction}
+            </span>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[10px]">
+            {f.deltaPrior != null && <FrameChip label="Δ prior" v={f.deltaPrior} />}
+            <span className="text-text-tertiary text-[10px] uppercase">{b.weight} wt</span>
+          </div>
+          {f.trend && (
+            <p className="text-text-secondary mt-1.5 text-[11px] leading-snug">{f.trend}</p>
+          )}
+          <p className="text-text-tertiary mt-1.5 text-[10px] leading-snug">{f.chain}</p>
+        </>
+      )}
+    </Card>
   );
 }
 

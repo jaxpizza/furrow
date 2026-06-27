@@ -468,6 +468,33 @@ export type Database = {
           },
         ]
       }
+      macro_cache: {
+        Row: {
+          as_of: string
+          fetched_at: string
+          id: string
+          payload: Json
+          signal_type: string
+          source_url: string | null
+        }
+        Insert: {
+          as_of: string
+          fetched_at?: string
+          id?: string
+          payload: Json
+          signal_type: string
+          source_url?: string | null
+        }
+        Update: {
+          as_of?: string
+          fetched_at?: string
+          id?: string
+          payload?: Json
+          signal_type?: string
+          source_url?: string | null
+        }
+        Relationships: []
+      }
       market_history_cache: {
         Row: {
           as_of: string
