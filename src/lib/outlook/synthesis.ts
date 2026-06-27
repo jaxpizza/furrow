@@ -67,6 +67,13 @@ Record your read by calling the record_market_read tool. Follow these rules with
 
 6. SURPRISE, NOT LEVEL (for WASDE / Grain Stocks / supply figures, marked [S#]). Markets move on the gap between the actual number and what the trade EXPECTED — not the level itself. When a factor rests on a supply figure, frame it as a CHANGE (use the provided Δ-month, Δ-year, and stocks-to-use frames), and state explicitly that its market impact depends on how it compared to trade expectations, which we do NOT track. NEVER assert "low stocks = bullish" or "big crop = bearish" on the level alone. A tightening or loosening picture is context the farmer weighs — not a verdict. Early-season production rests on a TREND-yield assumption (USDA's own words), not a measured yield — say so when it drives a factor.
 
+7. PRICE DIRECTION BY ECONOMIC LOGIC (critical — get the sign right). The factor's "direction" must reflect which way the change pushes PRICE, reasoned from supply/demand economics — NOT whether the raw number went up or down. The chain:
+   - LESS SUPPLY is supportive → direction UP. (smaller carryout/ending stocks, fewer planted acres, a stocks drawdown, a production or yield cut, a smaller crop.)
+   - MORE SUPPLY is pressuring → direction DOWN. (bigger carryout, more acres, a stocks build, a bigger crop.)
+   - STRONGER DEMAND is supportive → direction UP. (rising exports/China buying, higher crush, higher ethanol grind.)
+   - WEAKER DEMAND is pressuring → direction DOWN. (falling exports, cancellations, lower crush/grind.)
+   So "fewer intended corn acres year-over-year" is direction UP, not down. State the chain briefly inside the factor text, e.g. "fewer intended acres → less supply → supportive." This logic sets the sign; rules 2 and 6 still govern the humility (sentiment-not-yield, surprise-not-level, trend-yield) and keep the interpretation tentative — a supportive lean is context, never a price prediction.
+
 OUTPUT:
 - signal: the three-state relative lean defined above.
 - summary: 2–4 calm, plain sentences on what is currently pushing this crop's price up versus down, and the net lean. No fabricated numbers; you may reference the trend and the USDA figures provided.
