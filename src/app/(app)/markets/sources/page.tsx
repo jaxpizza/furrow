@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Database,
   ExternalLink,
+  Activity,
   Globe,
   Layers,
   Newspaper,
@@ -21,6 +22,8 @@ import type { CotBundle } from "@/lib/outlook/cot-types";
 import { getEconSnapshot } from "@/lib/outlook/econ-ingest";
 import { getMacroSnapshot } from "@/lib/outlook/macro-ingest";
 import { MACRO_LABEL, type MacroBundle, type MacroFrame } from "@/lib/outlook/macro-types";
+import { getTechnicalsSnapshot } from "@/lib/outlook/technicals-ingest";
+import type { TechnicalsBundle } from "@/lib/outlook/technicals-types";
 import { REPORT_LABEL, type EconBundle, type EconFrame } from "@/lib/outlook/econ-types";
 import { getSourcesSnapshot } from "@/lib/outlook/ingest";
 import { NASS_ATTRIBUTION } from "@/lib/outlook/sources";
@@ -42,14 +45,21 @@ export default async function OutlookSourcesPage() {
   if (!user) redirect("/sign-in");
   if (farms.length === 0) redirect("/onboarding");
 
-  const [{ news, reports, newsFetchedAt, reportsFetchedAt }, econ, demandSnap, cotSnap, macroSnap] =
-    await Promise.all([
-      getSourcesSnapshot(),
-      getEconSnapshot(),
-      getDemandSnapshot(),
-      getCotSnapshot(),
-      getMacroSnapshot(),
-    ]);
+  const [
+    { news, reports, newsFetchedAt, reportsFetchedAt },
+    econ,
+    demandSnap,
+    cotSnap,
+    macroSnap,
+    techSnap,
+  ] = await Promise.all([
+    getSourcesSnapshot(),
+    getEconSnapshot(),
+    getDemandSnapshot(),
+    getCotSnapshot(),
+    getMacroSnapshot(),
+    getTechnicalsSnapshot(),
+  ]);
 
   const supply = [...econ.bundles].sort(
     (a, b) => a.crop.localeCompare(b.crop) || a.reportType.localeCompare(b.reportType),
@@ -62,6 +72,7 @@ export default async function OutlookSourcesPage() {
   const macro = [...macroSnap.bundles].sort(
     (a, b) => (macroOrder[a.signalType] ?? 9) - (macroOrder[b.signalType] ?? 9),
   );
+  const technicals = [...techSnap.bundles].sort((a, b) => a.crop.localeCompare(b.crop));
 
   const bundles = [...reports].sort(
     (a, b) =>
@@ -215,6 +226,33 @@ export default async function OutlookSourcesPage() {
         </p>
       </section>
 
+      {/* ── Technicals (Phase E: chart levels from price history) ─────────── */}
+      <section className="mb-8">
+        <SectionHeader
+          icon={<Activity className="size-4 text-[var(--accent)]" />}
+          title="Technicals — Chart Levels"
+          meta={`${technicals.length} markets`}
+        />
+        {technicals.length === 0 ? (
+          <Empty>No price history available to compute technicals.</Empty>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {technicals.map((b) => (
+              <TechnicalsCard key={b.crop} b={b} />
+            ))}
+          </div>
+        )}
+        <p className="text-text-tertiary mt-3 text-[11px] leading-relaxed">
+          What chart-driven traders act on — support/resistance, moving averages,
+          trend, momentum. These are a secondary signal and{" "}
+          <span className="text-foreground">not a prediction</span>: levels matter
+          because traders watch them (partly self-fulfilling). Free price feeds
+          paywall history, so these are computed on{" "}
+          <span className="text-foreground">sample data</span> until a real series
+          accrues — labeled accordingly.
+        </p>
+      </section>
+
       {/* ── USDA NASS ─────────────────────────────────────────────────────── */}
       <section className="mb-8">
         <SectionHeader
@@ -362,6 +400,92 @@ function DemandFrameRow({ f }: { f: DemandFrame }) {
       </div>
     </li>
   );
+}
+
+function TechnicalsCard({ b }: { b: TechnicalsBundle }) {
+  const trendColor =
+    b.trend === "uptrend"
+      ? "text-[var(--pos)]"
+      : b.trend === "downtrend"
+        ? "text-[var(--neg)]"
+        : "text-text-tertiary";
+  return (
+    <Card className="p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
+          {CROP_LABEL[b.crop]} · Technicals
+        </span>
+        {b.basedOnSample && (
+          <span className="tnum rounded bg-[var(--neg)]/12 px-1.5 text-[10px] font-medium text-[var(--neg)]">
+            SAMPLE DATA · low-confidence
+          </span>
+        )}
+      </div>
+
+      <div className="mt-2 flex items-baseline justify-between gap-2">
+        <span className="flex items-baseline gap-1">
+          <span className="tnum text-foreground text-lg font-medium">${b.price}</span>
+        </span>
+        <span className={cnTrend(trendColor)}>
+          {b.trend} · {b.trendDetail}
+        </span>
+      </div>
+
+      {/* support / resistance */}
+      <div className="mt-2.5 space-y-1 text-[11px]">
+        <div className="flex items-baseline justify-between">
+          <span className="text-text-tertiary">Resistance (3M)</span>
+          <span className="tnum text-foreground">
+            {b.resistance ? `$${b.resistance.value} · +${b.resistance.distancePct}%` : "—"}
+            {b.atKeyLevel === "resistance" && (
+              <span className="text-[var(--neg)]"> · testing</span>
+            )}
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between">
+          <span className="text-text-tertiary">Support (3M)</span>
+          <span className="tnum text-foreground">
+            {b.support ? `$${b.support.value} · −${b.support.distancePct}%` : "—"}
+            {b.atKeyLevel === "support" && (
+              <span className="text-[var(--pos)]"> · testing</span>
+            )}
+          </span>
+        </div>
+      </div>
+
+      {/* moving averages */}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {b.movingAverages.map((m) => (
+          <span
+            key={m.period}
+            className={
+              m.above
+                ? "tnum rounded bg-[var(--pos)]/12 px-1.5 py-0.5 text-[10px] text-[var(--pos)]"
+                : "tnum rounded bg-[var(--neg)]/12 px-1.5 py-0.5 text-[10px] text-[var(--neg)]"
+            }
+          >
+            {m.period}d ${m.value} {m.above ? "↑" : "↓"} {signedPct(m.priceVsPct)}
+          </span>
+        ))}
+      </div>
+
+      {/* momentum + range */}
+      <div className="text-text-tertiary mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px]">
+        <span className="tnum">{b.momentumLabel}</span>
+        <span className="tnum">range {b.rangePercentile}th pctile</span>
+      </div>
+      <p className="text-text-tertiary mt-2 text-[10px] leading-snug">
+        Not a prediction — levels matter because traders watch them.
+      </p>
+    </Card>
+  );
+}
+
+function cnTrend(color: string): string {
+  return `tnum text-[10px] font-medium ${color}`;
+}
+function signedPct(n: number): string {
+  return `${n > 0 ? "+" : ""}${n}%`;
 }
 
 function MacroCard({ b }: { b: MacroBundle }) {

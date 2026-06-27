@@ -728,6 +728,39 @@ export type Database = {
           },
         ]
       }
+      price_history: {
+        Row: {
+          close: number
+          crop: Database["public"]["Enums"]["crop"]
+          date: string
+          high: number | null
+          id: string
+          low: number | null
+          open: number | null
+          source: string
+        }
+        Insert: {
+          close: number
+          crop: Database["public"]["Enums"]["crop"]
+          date: string
+          high?: number | null
+          id?: string
+          low?: number | null
+          open?: number | null
+          source: string
+        }
+        Update: {
+          close?: number
+          crop?: Database["public"]["Enums"]["crop"]
+          date?: string
+          high?: number | null
+          id?: string
+          low?: number | null
+          open?: number | null
+          source?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

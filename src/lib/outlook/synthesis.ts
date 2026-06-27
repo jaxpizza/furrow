@@ -18,6 +18,8 @@ import type { CotBundle } from "./cot-types";
 import { getDemandSnapshot } from "./demand-ingest";
 import { getMacroSnapshot } from "./macro-ingest";
 import { MACRO_LABEL, type MacroBundle, type MacroFrame } from "./macro-types";
+import { getTechnicalsSnapshot } from "./technicals-ingest";
+import type { TechnicalsBundle } from "./technicals-types";
 import { DEMAND_LABEL, type DemandBundle, type DemandFrame } from "./demand-types";
 import { getEconSnapshot, type UpcomingReport } from "./econ-ingest";
 import { REPORT_LABEL, type EconBundle, type EconFrame } from "./econ-types";
@@ -105,6 +107,11 @@ Record your read by calling the record_market_read tool. Follow these rules with
    - DEFAULT: do NOT put macro in your factors. When dollar/crude/weather are minor or routine (a normal daily/weekly wiggle, near-normal moisture), leave them OUT of factors entirely — they are already visible in the strip. This keeps the factor list high-signal and fundamentals-led.
    - PROMOTE a macro item INTO the factors ONLY when it is materially shaping the read: e.g. a Corn Belt DROUGHT during the summer pollination/pod-fill window (HIGH weight — can legitimately lead), or an accumulating multi-week dollar move that is genuinely bearing on export competitiveness alongside the export data. When you promote one, apply rule 7's stated direction chain (stronger dollar → export headwind → DOWN; crude up → ethanol/input support → UP; below-normal Corn Belt moisture → supply risk → UP) and explicitly label it second-order/medium-weight (except summer-weather drought, which may lead).
    - NEVER let macro outnumber or outweigh supply/demand in the final lean. A routine dollar/crude wiggle must not flip the read. Near-normal moisture is never a factor (it lives only in the strip). Always carry the >7-day-forecast humility when weather is discussed.
+
+10. TECHNICALS ARE NOT A PREDICTION (for the [T1] price-technicals item). Support/resistance, moving averages, trend, and momentum describe what CHART-DRIVEN traders act on — they are a SECONDARY/tertiary signal, weaker than fundamentals (rule: technicals are LOW/tertiary most of the year). Frame them as context, never as a forecast:
+   - "Price is testing resistance near $X" means a level where selling has historically appeared and where chart traders may sell again — a partly SELF-FULFILLING level because traders watch it — NOT "price will fall." Same for support. State it this way.
+   - DEFAULT: technicals inform the price/trend factor as supporting colour; do NOT make a standalone technical factor for routine readings. PROMOTE a technical to its own factor ONLY when genuinely notable — e.g. price sitting right at a major multi-month resistance/support, or a clear trend break — and even then keep it clearly secondary to the fundamental story; never let a chart level override a fundamental factor or flip the net lean.
+   - LOW-CONFIDENCE DATA: if the technicals are marked sample/limited-data, you MUST say plainly that they are based on sample/placeholder price data and are low-confidence (do not present them as live chart levels). When sample-based, keep them out of the factors entirely and mention the limitation at most once.
 
 OUTPUT:
 - signal: the three-state relative lean defined above.
@@ -295,6 +302,20 @@ async function assembleCorpus(
   lines.push("");
   const macroContext = buildMacroContext(macro);
 
+  // 1f. TECHNICALS — chart levels from price history; supporting context (rule 10)
+  const techSnap = await getTechnicalsSnapshot(now);
+  const tech = techSnap.bundles.find((b) => b.crop === crop) ?? null;
+  lines.push(
+    "=== TECHNICALS (chart levels from price history — what chart-driven traders act on, NOT a prediction; SECONDARY/tertiary signal per rule 10) ===",
+  );
+  if (tech) {
+    sources.set("T1", { id: "T1", label: "Price technicals (computed)", url: null });
+    lines.push(`[T1] Price technicals — ${fmtTechnicals(tech)}`);
+  } else {
+    lines.push("(no price history available to compute technicals)");
+  }
+  lines.push("");
+
   // 2. Price & basis — reuse the markets service
   const symbol = CROP_TO_SYMBOL[crop];
   const history = await getFuturesHistory(symbol, now);
@@ -362,7 +383,7 @@ async function assembleCorpus(
       priceTrend: dir,
     },
     macroContext,
-    hash: hashCorpus(crop, reports, news, dir, supply, demand, cot, macro),
+    hash: hashCorpus(crop, reports, news, dir, supply, demand, cot, macro, tech),
     sampleData,
   };
 }
@@ -430,6 +451,26 @@ function fmtFrame(f: EconFrame): string {
   let out = `${f.metric}: ${parts.join(", ")}`;
   if (!f.expectationAvailable) out += " [trade expectations: not tracked]";
   if (f.note) out += ` — ${f.note}`;
+  return out;
+}
+
+function fmtTechnicals(t: TechnicalsBundle): string {
+  const parts: string[] = [`price $${t.price}`, `trend ${t.trend} (${t.trendDetail})`];
+  const mas = t.movingAverages
+    .map((m) => `${m.period}d $${m.value} (${m.above ? "above" : "below"}, ${signed(m.priceVsPct)}%)`)
+    .join(", ");
+  if (mas) parts.push(`MAs: ${mas}`);
+  if (t.resistance)
+    parts.push(`resistance $${t.resistance.value} (+${t.resistance.distancePct}% away, 3M)`);
+  if (t.support)
+    parts.push(`support $${t.support.value} (−${t.support.distancePct}% away, 3M)`);
+  if (t.atKeyLevel) parts.push(`PRICE TESTING ${t.atKeyLevel.toUpperCase()} (within 1.5%)`);
+  parts.push(`momentum ${t.momentumLabel}`);
+  parts.push(`range percentile ${t.rangePercentile}th (trailing ${t.rangeWindowDays}d)`);
+  let out = parts.join("; ");
+  out += t.basedOnSample
+    ? " — ⚠ BASED ON SAMPLE/PLACEHOLDER PRICE DATA (no live history feed): LOW-CONFIDENCE, do not present as live chart levels; keep out of factors."
+    : " — levels matter because chart traders watch them (partly self-fulfilling), NOT a prediction.";
   return out;
 }
 
@@ -502,6 +543,7 @@ function hashCorpus(
   demand: DemandBundle[],
   cot: CotBundle[],
   macro: MacroBundle[],
+  tech: TechnicalsBundle | null,
 ): string {
   const usda = reports
     .map(
@@ -528,7 +570,10 @@ function hashCorpus(
     .map((b) => `${b.signalType}:${b.asOf}:${b.frames.map((f) => `${f.value}:${f.direction}`).join(",")}`)
     .sort()
     .join("|");
-  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}::${mf}::${mac}`;
+  const tch = tech
+    ? `${tech.price}:${tech.trend}:${tech.rsi}:${tech.rangePercentile}:${tech.atKeyLevel}:${tech.basedOnSample}`
+    : "none";
+  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}::${mf}::${mac}::${tch}`;
   return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 
