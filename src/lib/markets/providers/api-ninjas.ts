@@ -113,9 +113,13 @@ export class ApiNinjasPriceProvider implements PriceProvider {
     if (!Array.isArray(data) || data.length === 0) return null;
 
     const cutoffMs = Date.now() - RANGE_DAYS[range] * 86_400_000;
+    // CME corn & soybeans (the only mapped commodities) quote in US CENTS (USX):
+    // a close of 421.75 means $4.2175/bu. The quote endpoint reports currency_unit
+    // and converts there; the historical endpoint omits it, so convert here too —
+    // without this, real history reads 100× high (e.g. $421 instead of $4.21).
     const points: PricePoint[] = data
       .map((bar) => {
-        const close = Number(bar.close);
+        const close = Number(bar.close) / 100;
         const ms = (bar.time ?? 0) * 1000;
         if (!Number.isFinite(close) || !ms) return null;
         return { time: new Date(ms).toISOString().slice(0, 10), value: close };

@@ -246,10 +246,10 @@ export default async function OutlookSourcesPage() {
           What chart-driven traders act on — support/resistance, moving averages,
           trend, momentum. These are a secondary signal and{" "}
           <span className="text-foreground">not a prediction</span>: levels matter
-          because traders watch them (partly self-fulfilling). Free price feeds
-          paywall history, so these are computed on{" "}
-          <span className="text-foreground">sample data</span> until a real series
-          accrues — labeled accordingly.
+          because traders watch them (partly self-fulfilling).{" "}
+          {technicals.some((t) => t.basedOnSample)
+            ? "Computed on sample data where a real series hasn't accrued — labeled accordingly."
+            : "Computed on the real 15-min-delayed daily series."}
         </p>
       </section>
 
@@ -415,9 +415,13 @@ function TechnicalsCard({ b }: { b: TechnicalsBundle }) {
         <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
           {CROP_LABEL[b.crop]} · Technicals
         </span>
-        {b.basedOnSample && (
+        {b.basedOnSample ? (
           <span className="tnum rounded bg-[var(--neg)]/12 px-1.5 text-[10px] font-medium text-[var(--neg)]">
             SAMPLE DATA · low-confidence
+          </span>
+        ) : (
+          <span className="tnum text-text-tertiary rounded bg-[var(--pos)]/12 px-1.5 text-[10px] font-medium text-[var(--pos)]">
+            LIVE · 15-min delayed
           </span>
         )}
       </div>

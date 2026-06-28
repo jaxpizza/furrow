@@ -39,23 +39,31 @@ export async function getTechnicalsSnapshot(
   return { bundles, basedOnSample: bundles.some((b) => b.basedOnSample) };
 }
 
-/** Upsert the close series into price_history; skip if already current. */
+/** Upsert the close series into price_history; skip if already current. Real
+ *  data is stored as source='live' and supersedes any prior sample rows. */
 async function persistSeries(
   crop: Crop,
   points: { time: string; value: number }[],
-  source: string,
+  rawSource: string,
 ): Promise<void> {
   if (points.length === 0) return;
+  const source = rawSource === "sample" ? "sample" : "live";
   try {
     const db = createServiceRoleClient();
     const lastDate = points[points.length - 1].time.slice(0, 10);
     const { data: existing } = await db
       .from("price_history")
-      .select("date")
+      .select("date, source")
       .eq("crop", crop)
       .order("date", { ascending: false })
       .limit(1);
-    if (existing?.[0]?.date === lastDate) return; // already current
+    const cur = existing?.[0];
+    if (cur?.date === lastDate && cur?.source === source) return; // already current
+
+    // when real data arrives, drop the placeholder sample rows it replaces
+    if (source === "live") {
+      await db.from("price_history").delete().eq("crop", crop).eq("source", "sample");
+    }
 
     const rows = points.map((p) => ({
       crop,

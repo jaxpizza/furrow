@@ -150,7 +150,7 @@ Record your read by calling the record_market_read tool. Follow these rules with
 10. TECHNICALS ARE NOT A PREDICTION (for the [T1] price-technicals item). Support/resistance, moving averages, trend, and momentum describe what CHART-DRIVEN traders act on — they are a SECONDARY/tertiary signal, weaker than fundamentals (rule: technicals are LOW/tertiary most of the year). Frame them as context, never as a forecast:
    - "Price is testing resistance near $X" means a level where selling has historically appeared and where chart traders may sell again — a partly SELF-FULFILLING level because traders watch it — NOT "price will fall." Same for support. State it this way.
    - DEFAULT: technicals inform the price/trend factor as supporting colour; do NOT make a standalone technical factor for routine readings. PROMOTE a technical to its own factor ONLY when genuinely notable — e.g. price sitting right at a major multi-month resistance/support, or a clear trend break — and even then keep it clearly secondary to the fundamental story; never let a chart level override a fundamental factor or flip the net lean.
-   - LOW-CONFIDENCE DATA: if the technicals are marked sample/limited-data, you MUST say plainly that they are based on sample/placeholder price data and are low-confidence (do not present them as live chart levels). When sample-based, keep them out of the factors entirely and mention the limitation at most once.
+   - DATA QUALITY — follow the [T1] line's explicit marker, do NOT assume. If [T1] says "DATA QUALITY: SAMPLE/PLACEHOLDER", you MUST call the technicals sample-based and low-confidence and keep them OUT of factors. If [T1] says "DATA QUALITY: LIVE", the technicals are REAL — treat them as normal live chart levels and do NOT describe them as sample, placeholder, or low-confidence (that would be false). Never add a sample/low-confidence caveat unless the marker is SAMPLE.
 
 11. REASON WITHIN THE SEASONAL FRAME (the "=== SEASONAL WEIGHTING ===" block). The corpus gives you the ACTIVE seasonal frame: the season, the dominant question, and each bucket's emphasis right now (HIGH = leads the read, MEDIUM = secondary, LOW = minor), plus event overlays (an imminent report spikes its bucket). USE this to decide which signals lead: a HIGH-emphasis bucket that is doing something real should be a main factor; a LOW-emphasis bucket usually should NOT lead. This is attention allocation, NOT a forecast — a correctly-weighted read still ends at a relative lean, never a price call. You MAY deviate from the seasonal prior when a lower-weighted signal is doing something genuinely EXTREME (e.g. a shock export cancellation, a record fund position) — but when you deviate you MUST say so and why ("normally minor in late June, but …"). Do not silently ignore the frame.
 
@@ -566,7 +566,10 @@ function fmtFrame(f: EconFrame): string {
 }
 
 function fmtTechnicals(t: TechnicalsBundle): string {
-  const parts: string[] = [`price $${t.price}`, `trend ${t.trend} (${t.trendDetail})`];
+  const marker = t.basedOnSample
+    ? "[DATA QUALITY: SAMPLE/PLACEHOLDER — not a live feed] "
+    : "[DATA QUALITY: LIVE — real 15-min-delayed daily price history] ";
+  const parts: string[] = [`${marker}price $${t.price}`, `trend ${t.trend} (${t.trendDetail})`];
   const mas = t.movingAverages
     .map((m) => `${m.period}d $${m.value} (${m.above ? "above" : "below"}, ${signed(m.priceVsPct)}%)`)
     .join(", ");
@@ -580,8 +583,8 @@ function fmtTechnicals(t: TechnicalsBundle): string {
   parts.push(`range percentile ${t.rangePercentile}th (trailing ${t.rangeWindowDays}d)`);
   let out = parts.join("; ");
   out += t.basedOnSample
-    ? " — ⚠ BASED ON SAMPLE/PLACEHOLDER PRICE DATA (no live history feed): LOW-CONFIDENCE, do not present as live chart levels; keep out of factors."
-    : " — levels matter because chart traders watch them (partly self-fulfilling), NOT a prediction.";
+    ? " — ⚠ SAMPLE/PLACEHOLDER PRICE DATA (no live feed): LOW-CONFIDENCE, do not present as live chart levels; keep out of factors and say it's sample-based."
+    : " — these are REAL live chart levels (do NOT call them sample or low-confidence); they matter because chart traders watch them (partly self-fulfilling), NOT a prediction.";
   return out;
 }
 
