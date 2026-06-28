@@ -18,6 +18,12 @@ import type { CotBundle } from "./cot-types";
 import { getDemandSnapshot } from "./demand-ingest";
 import { getMacroSnapshot } from "./macro-ingest";
 import { MACRO_LABEL, type MacroBundle, type MacroFrame } from "./macro-types";
+import {
+  computeSeasonalWeighting,
+  SEASON_BUCKET_LABEL,
+  type Emphasis,
+  type SeasonBucket,
+} from "./seasonal";
 import { getTechnicalsSnapshot } from "./technicals-ingest";
 import type { TechnicalsBundle } from "./technicals-types";
 import { DEMAND_LABEL, type DemandBundle, type DemandFrame } from "./demand-types";
@@ -55,11 +61,44 @@ export type MacroContextItem = {
 };
 export type MacroContext = MacroContextItem[];
 
+/** The active seasonal frame (F1) — computed, not from the LLM. Transparent so
+ *  it can be displayed: which buckets lead the read at this point in the year. */
+export type SeasonalContext = {
+  line: string;
+  season: string;
+  monthLabel: string;
+  dominantQuestion: string;
+  emphasis: { bucket: string; emphasis: Emphasis }[];
+};
+
+/** Per-bucket "watched, not driving" layer (F1) — every one of the six buckets
+ *  is represented here (proving it was considered), but only drivers are also in
+ *  `factors`. LLM-emitted. */
+export type WatchedBucket = {
+  bucket: string;
+  state: string; // current framed state, one line
+  lean: "up" | "down" | "neutral";
+  emphasis: "high" | "medium" | "low";
+  isDriver: boolean; // also promoted into factors?
+};
+
+/** The named axis of disagreement (F1 / design §2.3) — drives "mixed", never a
+ *  vague catch-all. Structured for the future F2 "what's pushing price" visual. */
+export type DominantTension = {
+  forceUp: string; // the bullish force
+  forceDown: string; // the bearish force
+  leans: "up" | "down" | "balanced";
+  why: string; // which side leads now + what could flip it
+};
+
 export type OutlookV2 = {
   crop: Crop;
   signal: Signal;
   summary: string;
   factors: OutlookFactorV2[];
+  seasonalContext: SeasonalContext;
+  dominantTension: DominantTension | null;
+  watchedContext: WatchedBucket[];
   macroContext: MacroContext;
   watchItems: string[];
   freshness: {
@@ -113,10 +152,18 @@ Record your read by calling the record_market_read tool. Follow these rules with
    - DEFAULT: technicals inform the price/trend factor as supporting colour; do NOT make a standalone technical factor for routine readings. PROMOTE a technical to its own factor ONLY when genuinely notable — e.g. price sitting right at a major multi-month resistance/support, or a clear trend break — and even then keep it clearly secondary to the fundamental story; never let a chart level override a fundamental factor or flip the net lean.
    - LOW-CONFIDENCE DATA: if the technicals are marked sample/limited-data, you MUST say plainly that they are based on sample/placeholder price data and are low-confidence (do not present them as live chart levels). When sample-based, keep them out of the factors entirely and mention the limitation at most once.
 
+11. REASON WITHIN THE SEASONAL FRAME (the "=== SEASONAL WEIGHTING ===" block). The corpus gives you the ACTIVE seasonal frame: the season, the dominant question, and each bucket's emphasis right now (HIGH = leads the read, MEDIUM = secondary, LOW = minor), plus event overlays (an imminent report spikes its bucket). USE this to decide which signals lead: a HIGH-emphasis bucket that is doing something real should be a main factor; a LOW-emphasis bucket usually should NOT lead. This is attention allocation, NOT a forecast — a correctly-weighted read still ends at a relative lean, never a price call. You MAY deviate from the seasonal prior when a lower-weighted signal is doing something genuinely EXTREME (e.g. a shock export cancellation, a record fund position) — but when you deviate you MUST say so and why ("normally minor in late June, but …"). Do not silently ignore the frame.
+
+12. UNIFIED DRIVER vs WATCHED-CONTEXT across ALL SIX buckets (supply, demand, money flow, macro, technicals, conditions). Every bucket is either a DRIVER (in your factors) or sits in WATCHED CONTEXT (considered, shown, not driving). One rule decides promotion: a bucket becomes a main factor when it is MATERIALLY shaping the read given the current seasonal weighting; otherwise it is watched context. The factors list stays high-signal (only drivers). You MUST emit 'watched_context': exactly one entry per bucket (supply, demand, money_flow, macro, technicals, conditions) giving its current state in one line, its lean (up/down/neutral), its seasonal emphasis (high/medium/low), and is_driver (true if you also made it a factor). This proves every bucket was considered even when it isn't driving. A bucket can be is_driver:true (then it's also in factors) or false (watched only). Keep the humility rules per bucket (surprise-not-level, sentiment-not-yield, COT contrarian, technicals-not-prediction, macro subordinate).
+
+13. NAME THE DOMINANT TENSION (design §2.3 — do not blur to "mixed"). Emit 'dominant_tension': the single main axis of disagreement in this read — the bullish force (force_up) vs the bearish force (force_down), which side currently leans (up/down/balanced), and why it leans that way plus what could flip it. The 'signal' MUST follow from this: a "mixed" signal is only valid when EXPLAINED by a real, named tension (e.g. "tightening old-crop carryout vs. rising new-crop acreage — supply leads near-term, but June 30 acreage could flip it"), never used as a vague catch-all. If one side clearly dominates, say favorable/unfavorable and let force_up/force_down show the minority force.
+
 OUTPUT:
-- signal: the three-state relative lean defined above.
+- signal: the three-state relative lean defined above, following from the dominant tension.
 - summary: 2–4 calm, plain sentences on what is currently pushing this crop's price up versus down, and the net lean. No fabricated numbers; you may reference the trend and the USDA figures provided.
-- factors: 2–5 items. Each carries a direction (up = supports price, down = pressures price, neutral), a short plain-English claim, and the source_id that backs it.
+- factors: 2–5 items — the DRIVERS only. Each carries a direction (up/down/neutral), a short plain-English claim, and the source_id that backs it. Reserve these for what materially leads the read under the seasonal frame (rules 11–12).
+- dominant_tension: the named axis of disagreement (rule 13): force_up, force_down, leans (up/down/balanced), why.
+- watched_context: exactly one entry per bucket — supply, demand, money_flow, macro, technicals, conditions (rule 12): bucket, state (one line), lean, emphasis (high/medium/low), is_driver.
 - watch_items: 1–3 short, concrete things to watch next (an upcoming USDA report named in the corpus, a weather window, an export-sales update) — only if grounded in a corpus item.`;
 
 const TOOL: Anthropic.Tool = {
@@ -153,6 +200,39 @@ const TOOL: Anthropic.Tool = {
           required: ["direction", "text", "source_id"],
         },
       },
+      dominant_tension: {
+        type: "object",
+        additionalProperties: false,
+        description: "The named axis of disagreement (rule 13). 'mixed' must be explained by this.",
+        properties: {
+          force_up: { type: "string", description: "The bullish/supportive force, one phrase." },
+          force_down: { type: "string", description: "The bearish/pressuring force, one phrase." },
+          leans: { type: "string", enum: ["up", "down", "balanced"] },
+          why: { type: "string", description: "Which side leads now + what could flip it." },
+        },
+        required: ["force_up", "force_down", "leans", "why"],
+      },
+      watched_context: {
+        type: "array",
+        description: "One entry per bucket (rule 12) — every bucket represented; only drivers also appear in factors.",
+        minItems: 6,
+        maxItems: 6,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            bucket: {
+              type: "string",
+              enum: ["supply", "demand", "money_flow", "macro", "technicals", "conditions"],
+            },
+            state: { type: "string", description: "Current state in one line." },
+            lean: { type: "string", enum: ["up", "down", "neutral"] },
+            emphasis: { type: "string", enum: ["high", "medium", "low"] },
+            is_driver: { type: "boolean" },
+          },
+          required: ["bucket", "state", "lean", "emphasis", "is_driver"],
+        },
+      },
       watch_items: {
         type: "array",
         minItems: 1,
@@ -161,7 +241,7 @@ const TOOL: Anthropic.Tool = {
         description: "Concrete things to watch next, grounded in the corpus.",
       },
     },
-    required: ["signal", "summary", "factors", "watch_items"],
+    required: ["signal", "summary", "factors", "dominant_tension", "watched_context", "watch_items"],
   },
 };
 
@@ -172,6 +252,7 @@ type Corpus = {
   sources: Map<string, OutlookSource>;
   freshness: OutlookV2["freshness"];
   macroContext: MacroContext;
+  seasonalContext: SeasonalContext;
   hash: string;
   sampleData: boolean;
 };
@@ -232,6 +313,35 @@ async function assembleCorpus(
   // 1b. USDA SUPPLY — WASDE balance sheet + Grain Stocks + Acreage, reference-framed
   const econ = await getEconSnapshot();
   const supply = econ.bundles.filter((b) => b.crop === crop);
+
+  // SEASONAL FRAME — the active weighting scaffolding (F1). Inserted near the TOP
+  // of the corpus so it frames everything below.
+  const sw = computeSeasonalWeighting(now, econ.upcoming);
+  const seasonalContext: SeasonalContext = {
+    line: sw.line,
+    season: sw.season,
+    monthLabel: sw.monthLabel,
+    dominantQuestion: sw.dominantQuestion,
+    emphasis: (Object.keys(sw.emphasis) as SeasonBucket[]).map((b) => ({
+      bucket: SEASON_BUCKET_LABEL[b],
+      emphasis: sw.emphasis[b],
+    })),
+  };
+  const emphasisList = (Object.keys(sw.emphasis) as SeasonBucket[])
+    .map((b) => `${SEASON_BUCKET_LABEL[b]}=${sw.emphasis[b].toUpperCase()}`)
+    .join(", ");
+  lines.splice(
+    2,
+    0,
+    "=== SEASONAL WEIGHTING (the ACTIVE frame for THIS read — see rule 11; use it to decide which signals LEAD) ===",
+    `Season: ${sw.season} · ${sw.monthLabel}. Dominant question: ${sw.dominantQuestion}`,
+    `Bucket emphasis right now: ${emphasisList}.`,
+    sw.imminentEvents.length
+      ? `Imminent events (overlay — these buckets spike): ${sw.imminentEvents.join("; ")}.`
+      : "No major report imminent.",
+    `Frame: ${sw.line}`,
+    "",
+  );
   lines.push(
     "=== USDA SUPPLY DATA (WASDE / Grain Stocks / Acreage — official; reason from the FRAMES not raw levels, see rule 6) ===",
   );
@@ -383,7 +493,8 @@ async function assembleCorpus(
       priceTrend: dir,
     },
     macroContext,
-    hash: hashCorpus(crop, reports, news, dir, supply, demand, cot, macro, tech),
+    seasonalContext,
+    hash: hashCorpus(crop, reports, news, dir, supply, demand, cot, macro, tech, sw.line),
     sampleData,
   };
 }
@@ -544,6 +655,7 @@ function hashCorpus(
   cot: CotBundle[],
   macro: MacroBundle[],
   tech: TechnicalsBundle | null,
+  seasonalLine: string,
 ): string {
   const usda = reports
     .map(
@@ -573,7 +685,7 @@ function hashCorpus(
   const tch = tech
     ? `${tech.price}:${tech.trend}:${tech.rsi}:${tech.rangePercentile}:${tech.atKeyLevel}:${tech.basedOnSample}`
     : "none";
-  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}::${mf}::${mac}::${tch}`;
+  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}::${mf}::${mac}::${tch}::${seasonalLine}`;
   return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 
@@ -635,7 +747,7 @@ async function generate(
     const client = new Anthropic({ maxRetries: 4 });
     const resp = await client.messages.create({
       model: OUTLOOK_MODEL,
-      max_tokens: 1400,
+      max_tokens: 2800,
       system: SYSTEM,
       tools: [TOOL],
       tool_choice: { type: "tool", name: "record_market_read" },
@@ -653,6 +765,14 @@ async function generate(
       signal?: string;
       summary?: string;
       factors?: { direction?: string; text?: string; source_id?: string }[];
+      dominant_tension?: { force_up?: string; force_down?: string; leans?: string; why?: string };
+      watched_context?: {
+        bucket?: string;
+        state?: string;
+        lean?: string;
+        emphasis?: string;
+        is_driver?: boolean;
+      }[];
       watch_items?: string[];
     };
 
@@ -680,11 +800,49 @@ async function generate(
       .slice(0, 3)
       .map((s) => s.trim());
 
+    const dt = input.dominant_tension;
+    const dominantTension: DominantTension | null =
+      dt && (dt.force_up || dt.force_down)
+        ? {
+            forceUp: String(dt.force_up ?? "").trim(),
+            forceDown: String(dt.force_down ?? "").trim(),
+            leans: (["up", "down", "balanced"] as const).includes(dt.leans as "up")
+              ? (dt.leans as DominantTension["leans"])
+              : "balanced",
+            why: String(dt.why ?? "").trim(),
+          }
+        : null;
+
+    const BUCKET_LABELS: Record<string, string> = {
+      supply: "Supply",
+      demand: "Demand",
+      money_flow: "Money flow",
+      macro: "Macro",
+      technicals: "Technicals",
+      conditions: "Conditions",
+    };
+    const watchedContext: WatchedBucket[] = (input.watched_context ?? [])
+      .filter((w) => w.bucket && w.state)
+      .map((w) => ({
+        bucket: BUCKET_LABELS[w.bucket as string] ?? String(w.bucket),
+        state: String(w.state).trim(),
+        lean: (["up", "down", "neutral"] as const).includes(w.lean as "up")
+          ? (w.lean as WatchedBucket["lean"])
+          : "neutral",
+        emphasis: (["high", "medium", "low"] as const).includes(w.emphasis as "high")
+          ? (w.emphasis as WatchedBucket["emphasis"])
+          : "medium",
+        isDriver: Boolean(w.is_driver),
+      }));
+
     return {
       crop,
       signal,
       summary: String(input.summary ?? "").trim(),
       factors,
+      seasonalContext: corpus.seasonalContext,
+      dominantTension,
+      watchedContext,
       macroContext: corpus.macroContext,
       watchItems,
       freshness: corpus.freshness,

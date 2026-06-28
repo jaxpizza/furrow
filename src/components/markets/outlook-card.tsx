@@ -13,11 +13,98 @@ import { Card } from "@/components/ui/card";
 import { Explainer } from "@/components/common/explainer";
 import { SignalBadge } from "@/components/common/signal-badge";
 import type {
+  DominantTension,
   MacroContextItem,
-  OutlookFactorV2,
   OutlookV2,
+  OutlookFactorV2,
+  SeasonalContext,
+  WatchedBucket,
 } from "@/lib/outlook/synthesis";
 import { cn } from "@/lib/utils";
+
+function SeasonalLine({ ctx }: { ctx: SeasonalContext }) {
+  return (
+    <div className="border-border/60 bg-bg-elevated/30 mt-3 rounded-md border px-3 py-2">
+      <div className="text-text-tertiary text-[10px] font-medium tracking-wide uppercase">
+        Seasonal frame · {ctx.season}
+      </div>
+      <p className="text-text-secondary mt-0.5 text-[11px] leading-snug">{ctx.line}</p>
+    </div>
+  );
+}
+
+function TensionBlock({ t }: { t: DominantTension }) {
+  const leanColor =
+    t.leans === "up"
+      ? "text-[var(--pos)]"
+      : t.leans === "down"
+        ? "text-[var(--neg)]"
+        : "text-[var(--neutral)]";
+  return (
+    <div className="border-border/60 mt-3 rounded-md border border-dashed px-3 py-2.5">
+      <div className="text-text-tertiary mb-1.5 text-[10px] font-medium tracking-wide uppercase">
+        Dominant tension ·{" "}
+        <span className={leanColor}>
+          {t.leans === "balanced" ? "balanced" : `leans ${t.leans}`}
+        </span>
+      </div>
+      <div className="flex items-stretch gap-2 text-[11px]">
+        <div className="flex-1">
+          <div className="text-[var(--pos)] text-[10px] font-medium">▲ supports</div>
+          <p className="text-text-secondary leading-snug">{t.forceUp}</p>
+        </div>
+        <div className="bg-border/60 w-px" />
+        <div className="flex-1">
+          <div className="text-[var(--neg)] text-[10px] font-medium">▼ pressures</div>
+          <p className="text-text-secondary leading-snug">{t.forceDown}</p>
+        </div>
+      </div>
+      {t.why && (
+        <p className="text-text-tertiary mt-1.5 text-[10px] leading-snug">{t.why}</p>
+      )}
+    </div>
+  );
+}
+
+function WatchedContextList({ items }: { items: WatchedBucket[] }) {
+  if (items.length === 0) return null;
+  const arrow = (l: WatchedBucket["lean"]) =>
+    l === "up" ? "↑" : l === "down" ? "↓" : "→";
+  const color = (l: WatchedBucket["lean"]) =>
+    l === "up"
+      ? "text-[var(--pos)]"
+      : l === "down"
+        ? "text-[var(--neg)]"
+        : "text-[var(--neutral)]";
+  return (
+    <div className="border-border/60 mt-1 border-t pt-3">
+      <div className="text-text-tertiary mb-2 text-[10px] font-medium tracking-wide uppercase">
+        All buckets considered · drivers + watched
+      </div>
+      <div className="space-y-1">
+        {items.map((w, i) => (
+          <div key={i} className="flex items-baseline gap-2 text-[11px]">
+            <span className={cn("tnum w-3 shrink-0 text-center", color(w.lean))}>
+              {arrow(w.lean)}
+            </span>
+            <span className="text-foreground w-20 shrink-0 font-medium">{w.bucket}</span>
+            <span
+              className={
+                w.isDriver
+                  ? "shrink-0 rounded bg-[var(--accent)]/15 px-1 text-[9px] text-[var(--accent)] uppercase"
+                  : "text-text-tertiary shrink-0 rounded bg-bg-elevated px-1 text-[9px] uppercase"
+              }
+            >
+              {w.isDriver ? "driver" : "watched"}
+            </span>
+            <span className="text-text-tertiary text-[9px] uppercase">{w.emphasis}</span>
+            <span className="text-text-secondary min-w-0 leading-snug">{w.state}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function MacroContextStrip({ items }: { items: MacroContextItem[] }) {
   if (items.length === 0) return null;
@@ -163,9 +250,13 @@ export function OutlookCard({ outlook }: { outlook: OutlookV2 | null }) {
         <SignalBadge signal={outlook.signal} />
       </div>
 
+      {outlook.seasonalContext && <SeasonalLine ctx={outlook.seasonalContext} />}
+
       <p className="text-text-secondary mt-4 text-sm leading-relaxed">
         {outlook.summary}
       </p>
+
+      {outlook.dominantTension && <TensionBlock t={outlook.dominantTension} />}
 
       <ul className="divide-border/60 mt-3 divide-y border-t border-border/60">
         {outlook.factors.map((factor, i) => (
@@ -174,6 +265,8 @@ export function OutlookCard({ outlook }: { outlook: OutlookV2 | null }) {
       </ul>
 
       <MacroContextStrip items={outlook.macroContext ?? []} />
+
+      <WatchedContextList items={outlook.watchedContext ?? []} />
 
       {outlook.watchItems.length > 0 && (
         <div className="border-border/60 mt-1 border-t pt-3">
