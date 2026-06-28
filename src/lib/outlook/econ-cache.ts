@@ -25,6 +25,10 @@ export async function writeEconBundle(b: EconBundle): Promise<boolean> {
           payload: JSON.parse(JSON.stringify(b.frames)),
           source_url: b.sourceUrl,
           released_at: b.releasedAt ?? new Date().toISOString(),
+          // bump on every write so the staleness gate clears — otherwise an
+          // unchanged release key leaves fetched_at at first-insert and the TTL
+          // check stays "stale", re-fetching the source on every outlook gen.
+          fetched_at: new Date().toISOString(),
         },
         { onConflict: "report_type,crop,marketing_year,released_at" },
       );

@@ -19,6 +19,7 @@ export async function writeCotBundle(b: CotBundle): Promise<boolean> {
           payload: JSON.parse(JSON.stringify(frames)),
           source_url: sourceUrl,
           released_at: releasedAt,
+          fetched_at: new Date().toISOString(), // bump so the staleness gate clears
         },
         { onConflict: "crop,report_date" },
       );

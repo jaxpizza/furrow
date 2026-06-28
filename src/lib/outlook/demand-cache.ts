@@ -20,6 +20,7 @@ export async function writeDemandBundle(b: DemandBundle): Promise<boolean> {
           payload: JSON.parse(JSON.stringify(b.frames)),
           source_url: b.sourceUrl,
           released_at: b.releasedAt,
+          fetched_at: new Date().toISOString(), // bump so the staleness gate clears
         },
         { onConflict: "data_type,crop,period" },
       );

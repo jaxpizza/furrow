@@ -16,6 +16,7 @@ export async function writeMacroBundle(b: MacroBundle): Promise<boolean> {
           as_of: b.asOf ?? new Date().toISOString().slice(0, 10),
           payload: JSON.parse(JSON.stringify({ weight: b.weight, frames: b.frames })),
           source_url: b.sourceUrl,
+          fetched_at: new Date().toISOString(), // bump so the staleness gate clears
         },
         { onConflict: "signal_type,as_of" },
       );
