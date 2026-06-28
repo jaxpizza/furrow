@@ -81,7 +81,13 @@ export async function getFuturesQuote(
 }
 
 /** Cached 1-year daily history (sliced for ranges client-side). Same fallback
- *  ladder as the quote. */
+ *  ladder as the quote.
+ *
+ *  BACKTEST NOTE (Phase F weighting study, Master Doc §6): we currently request a
+ *  "1Y" range (~292 daily bars) — enough for technicals (MA200 needs 200). The
+ *  paid feed actually returns ~5yr of OHLCV; when we build the empirical weighting
+ *  backtest we'll want that deeper series (request a multi-year range here and let
+ *  price_history accumulate it) so the study has enough history to be meaningful. */
 export async function getFuturesHistory(
   symbol: Symbol,
   now: Date,
