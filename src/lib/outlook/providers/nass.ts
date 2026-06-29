@@ -9,6 +9,17 @@ import {
 import type { ReportBundle, ReportProvider } from "../types";
 
 const BASE = "https://quickstats.nass.usda.gov/api";
+
+// Human-readable report pages for grounding links (the api_GET endpoint above is
+// keyless and 401s in a browser; these resolve for a farmer). Falls back to the
+// Quick Stats UI, where any of these series can be queried by hand.
+const HUMAN_URL: Record<string, string> = {
+  condition: "https://www.nass.usda.gov/Publications/National_Crop_Progress/",
+  progress: "https://www.nass.usda.gov/Publications/National_Crop_Progress/",
+  yield: "https://usda.library.cornell.edu/concern/publications/tm70mv177",
+  production: "https://usda.library.cornell.edu/concern/publications/tm70mv177",
+};
+const QUICKSTATS_UI = "https://quickstats.nass.usda.gov/";
 const RECORD_LIMIT = 50_000; // NASS hard cap per request
 const FETCH_TIMEOUT_MS = 20_000;
 
@@ -110,7 +121,7 @@ export class NassReportProvider implements ReportProvider {
       crop: q.crop,
       geography: q.geography,
       period: q.period,
-      sourceUrl: `${BASE}/api_GET/?${params}`, // keyless — reproducible grounding
+      sourceUrl: HUMAN_URL[q.reportType] ?? QUICKSTATS_UI,
       fetchedAt,
       points,
     };

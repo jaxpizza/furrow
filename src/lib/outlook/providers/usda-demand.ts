@@ -170,7 +170,7 @@ export class UsdaDemandProvider implements DemandProvider {
         marketingYear: String(my),
         period: week ? `week ending ${week}` : null,
         releasedAt: week ? `${week}T00:00:00Z` : null,
-        sourceUrl: `https://fas.usda.gov/data/commodities/${crop === "corn" ? "corn" : "soybeans"}`,
+        sourceUrl: "https://fas.usda.gov/data", // FAS Data & Analysis (export sales) — human page
         frames,
       },
     ];
@@ -224,8 +224,7 @@ export class UsdaDemandProvider implements DemandProvider {
         marketingYear: String(exportMarketingYear()),
         period: `week of ${latest.period}`,
         releasedAt: `${latest.period}T00:00:00Z`,
-        sourceUrl:
-          "https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=W_EPOOXE_YOP_NUS_MBBLD",
+        sourceUrl: "https://www.eia.gov/dnav/pet/pet_pnp_wprode_s1_w.htm", // EIA weekly oxygenate (ethanol) production — human page
         frames: [frame],
       },
     ];
@@ -287,7 +286,7 @@ export class UsdaDemandProvider implements DemandProvider {
         marketingYear: String(yr),
         period: `${mon} ${yr}`,
         releasedAt: loadTimeIso(latest.load_time),
-        sourceUrl: `${NASS_BASE}/api_GET/?${encodeURI(params)}`,
+        sourceUrl: "https://usda.library.cornell.edu/concern/publications/n583xt96p", // NASS Oilseed Crushings — human report page
         frames: [frame],
       },
     ];

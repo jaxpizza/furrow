@@ -11,6 +11,15 @@ import type { EconBundle, EconFrame, EconProvider } from "../econ-types";
 const ESMIS_LATEST =
   "https://usda.library.cornell.edu/api/v1/release/findByIdentifier/wasde?latest=true";
 const NASS_BASE = "https://quickstats.nass.usda.gov/api";
+
+// Human-readable report landing pages for grounding links (the fetch URLs above
+// are API/file endpoints that 401/403 in a browser — these resolve for a farmer).
+const HUMAN_URL = {
+  wasde: "https://usda.library.cornell.edu/concern/publications/3t945q76s",
+  grain_stocks: "https://usda.library.cornell.edu/concern/publications/xg94hp534",
+  acreage: "https://usda.library.cornell.edu/concern/publications/j098zb09z",
+  prospective_plantings: "https://usda.library.cornell.edu/concern/publications/x633f100h",
+} as const;
 const TIMEOUT_MS = 25_000;
 const CROPS: Crop[] = ["corn", "soybean"];
 const NASS_COMMODITY: Record<Crop, string> = { corn: "CORN", soybean: "SOYBEANS" };
@@ -57,7 +66,6 @@ export class UsdaEconProvider implements EconProvider {
     } | null;
     const release = meta?.results?.[0];
     const xmlUrl = release?.files?.find((f) => f.endsWith(".xml"));
-    const pdfUrl = release?.files?.find((f) => f.endsWith(".pdf"));
     if (!xmlUrl) {
       console.warn("[econ] WASDE: no XML in latest release");
       return [];
@@ -67,7 +75,6 @@ export class UsdaEconProvider implements EconProvider {
 
     const parsed = parseWasdeXml(xml);
     const releasedAt = release?.release_datetime ?? null;
-    const source = pdfUrl ?? xmlUrl;
 
     const bundles: EconBundle[] = [];
     for (const crop of CROPS) {
@@ -79,7 +86,7 @@ export class UsdaEconProvider implements EconProvider {
         crop,
         marketingYear: figs.endingStocks?.marketingYear ?? "",
         releasedAt,
-        sourceUrl: source,
+        sourceUrl: HUMAN_URL.wasde,
         frames,
       });
     }
@@ -138,7 +145,7 @@ export class UsdaEconProvider implements EconProvider {
         crop,
         marketingYear: String(latest.year),
         releasedAt: loadTimeIso(latest.load_time),
-        sourceUrl: `${NASS_BASE}/api_GET/?${params}`,
+        sourceUrl: HUMAN_URL.grain_stocks,
         frames: [frame],
       },
     ];
@@ -203,7 +210,7 @@ export class UsdaEconProvider implements EconProvider {
         crop,
         marketingYear: String(cy),
         releasedAt: loadTimeIso(currentRow?.load_time),
-        sourceUrl: `${NASS_BASE}/api_GET/?${encodeURI(params)}`,
+        sourceUrl: isAcreage ? HUMAN_URL.acreage : HUMAN_URL.prospective_plantings,
         frames: [frame],
       },
     ];
