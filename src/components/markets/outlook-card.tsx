@@ -207,7 +207,15 @@ function FactorRow({ factor }: { factor: OutlookFactorV2 }) {
   );
 }
 
-export function OutlookCard({ outlook }: { outlook: OutlookV2 | null }) {
+export function OutlookCard({
+  outlook,
+  apiKeyMissing = false,
+}: {
+  outlook: OutlookV2 | null;
+  /** true only when ANTHROPIC_API_KEY is genuinely unset — so we don't tell the
+   *  user to fix a key that's already set when the real cause is a model outage. */
+  apiKeyMissing?: boolean;
+}) {
   if (!outlook) {
     return (
       <Card className="flex flex-col p-5 md:col-span-1">
@@ -218,12 +226,22 @@ export function OutlookCard({ outlook }: { outlook: OutlookV2 | null }) {
           </span>
         </div>
         <p className="text-text-secondary mt-4 text-sm leading-relaxed">
-          The market read is synthesized by Claude from the USDA + ag-news
-          corpus and the price trend. Set{" "}
-          <span className="text-foreground font-mono text-xs">
-            ANTHROPIC_API_KEY
-          </span>{" "}
-          to enable it.
+          {apiKeyMissing ? (
+            <>
+              The market read is synthesized by Claude from the USDA + ag-news
+              corpus and the price trend. Set{" "}
+              <span className="text-foreground font-mono text-xs">
+                ANTHROPIC_API_KEY
+              </span>{" "}
+              to enable it.
+            </>
+          ) : (
+            <>
+              The market read is temporarily unavailable — the synthesis couldn&apos;t
+              be generated just now and there&apos;s no recent cached read to fall back
+              on. Please check back shortly.
+            </>
+          )}
         </p>
       </Card>
     );

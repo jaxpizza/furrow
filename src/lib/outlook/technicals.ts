@@ -114,18 +114,32 @@ export function computeTechnicals(
   };
 }
 
-/** Wilder's RSI over `period`. */
+/**
+ * Wilder's RSI over `period` — the standard charting platforms use, so it matches
+ * what chart traders actually see. Seeds the average over the first `period`
+ * changes, then smooths exponentially across ALL remaining bars (NOT a simple
+ * average of only the last `period`, which would diverge from every trading tool).
+ */
 function computeRsi(closes: number[], period: number): number | null {
   if (closes.length < period + 1) return null;
+  // seed: simple average of the first `period` changes
   let gain = 0;
   let loss = 0;
-  for (let i = closes.length - period; i < closes.length; i++) {
+  for (let i = 1; i <= period; i++) {
     const ch = closes[i] - closes[i - 1];
     if (ch >= 0) gain += ch;
     else loss -= ch;
   }
-  const avgGain = gain / period;
-  const avgLoss = loss / period;
+  let avgGain = gain / period;
+  let avgLoss = loss / period;
+  // Wilder smoothing across the rest of the series
+  for (let i = period + 1; i < closes.length; i++) {
+    const ch = closes[i] - closes[i - 1];
+    const up = ch >= 0 ? ch : 0;
+    const down = ch < 0 ? -ch : 0;
+    avgGain = (avgGain * (period - 1) + up) / period;
+    avgLoss = (avgLoss * (period - 1) + down) / period;
+  }
   if (avgLoss === 0) return avgGain === 0 ? 50 : 100;
   const rs = avgGain / avgLoss;
   return 100 - 100 / (1 + rs);

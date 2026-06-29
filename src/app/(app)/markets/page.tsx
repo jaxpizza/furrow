@@ -113,6 +113,7 @@ export default async function MarketsPage({
           contractMonth={cash.futuresRef!.contractMonth}
           asOf={cash.futuresRef!.asOf}
           source={futuresSource}
+          stale={cash.futuresRef!.stale}
           delta={delta}
           breakeven={{ effective: effectiveBE, profitTargetPrice }}
           basisAge={basisAge(cash.basisUpdatedAt, now)}
@@ -126,6 +127,7 @@ export default async function MarketsPage({
           direction={delta.direction}
           nextMonths={nextMonths}
           source={futuresSource}
+          stale={cash.futuresRef!.stale}
         />
 
         <BreakevenCard
@@ -141,7 +143,10 @@ export default async function MarketsPage({
           sampleData={chartSample}
         />
 
-        <OutlookCard outlook={outlook} />
+        <OutlookCard
+          outlook={outlook}
+          apiKeyMissing={!process.env.ANTHROPIC_API_KEY}
+        />
       </div>
     </div>
   );

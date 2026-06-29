@@ -9,6 +9,7 @@ export function FuturesStrip({
   direction,
   nextMonths,
   source,
+  stale = false,
 }: {
   frontMonth: string;
   frontPrice: number;
@@ -17,6 +18,7 @@ export function FuturesStrip({
   direction: Direction;
   nextMonths: string[];
   source: string;
+  stale?: boolean;
 }) {
   return (
     <Card className="flex flex-col p-5">
@@ -27,6 +29,10 @@ export function FuturesStrip({
         {source === "sample" ? (
           <span className="rounded bg-[var(--accent)]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
             SAMPLE
+          </span>
+        ) : stale ? (
+          <span className="rounded bg-[var(--neg)]/12 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--neg)]">
+            FEED UNAVAILABLE · LAST VALUE
           </span>
         ) : (
           <span className="text-text-tertiary rounded bg-bg-elevated px-1.5 py-0.5 text-[10px] font-medium">

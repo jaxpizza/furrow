@@ -49,6 +49,7 @@ export function CashPriceCard({
   contractMonth,
   asOf,
   source,
+  stale = false,
   delta,
   breakeven,
   basisAge,
@@ -65,6 +66,9 @@ export function CashPriceCard({
   asOf: string;
   /** futures source: 'api-ninjas' (live, 15-min delayed) | 'sample' */
   source: string;
+  /** true when the live feed failed and a last-known quote is being served — so
+   *  we never assert "15-MIN DELAYED" (live) over a stale value. */
+  stale?: boolean;
   delta: { change: number; pct: number; direction: Direction };
   /** the farmer's break-even line, shown against the cash price */
   breakeven: { effective: number | null; profitTargetPrice: number | null };
@@ -88,6 +92,10 @@ export function CashPriceCard({
               {isSample ? (
                 <span className="rounded bg-[var(--accent)]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
                   SAMPLE
+                </span>
+              ) : stale ? (
+                <span className="rounded bg-[var(--neg)]/12 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--neg)]">
+                  FEED UNAVAILABLE · LAST VALUE
                 </span>
               ) : (
                 <span className="text-text-tertiary rounded bg-bg-elevated px-1.5 py-0.5 text-[10px] font-medium">
