@@ -19,8 +19,10 @@ import { getDemandSnapshot } from "./demand-ingest";
 import { getMacroSnapshot } from "./macro-ingest";
 import { MACRO_LABEL, type MacroBundle, type MacroFrame } from "./macro-types";
 import {
+  ageDays,
   conditionGaps,
   demandGaps,
+  exportState,
   macroGaps,
   supplyGaps,
 } from "./manifest";
@@ -164,7 +166,11 @@ Record your read by calling the record_market_read tool. Follow these rules with
 
 13. NAME THE DOMINANT TENSION (design §2.3 — do not blur to "mixed"). Emit 'dominant_tension': the single main axis of disagreement in this read — the bullish force (force_up) vs the bearish force (force_down), which side currently leans (up/down/balanced), and why it leans that way plus what could flip it. The 'signal' MUST follow from this: a "mixed" signal is only valid when EXPLAINED by a real, named tension (e.g. "tightening old-crop carryout vs. rising new-crop acreage — supply leads near-term, but June 30 acreage could flip it"), never used as a vague catch-all. If one side clearly dominates, say favorable/unfavorable and let force_up/force_down show the minority force.
 
-14. DISCLOSE DATA GAPS — NEVER PRESENT A PARTIAL BUCKET AS COMPLETE. When the corpus contains a "(DATA GAP — … UNAVAILABLE this read …)" line for a bucket, a sub-signal that bucket normally carries is missing this read (e.g. weekly export sales / China share absent while ethanol & crush are present). You MUST: (a) in that bucket's watched_context entry, explicitly STATE which sub-signal is unavailable (e.g. "export-sales data unavailable this read — no FAS pace or China figure"); (b) NOT imply or assert any quantitative read for the missing sub-signal, and NOT let the bucket read as if complete; (c) you may still reason from the PRESENT sub-signals in that bucket and from cited news (clearly attributed, qualitative); (d) NEVER fabricate or estimate the missing figure. A bucket missing its lead sub-signal should generally be lower-confidence and is usually NOT a strong driver on the missing dimension. Honesty about what is missing is required, not optional.
+14. DATA FRESHNESS — DISTINGUISH FRESH vs DATED vs GAP; NEVER PRESENT A PARTIAL BUCKET AS COMPLETE. Three states:
+   (a) FRESH — a normal reading with no age marker: use it as current.
+   (b) DATED [keep-last-good] — a reading tagged "[DATED keep-last-good — … as of <date> …]". This sub-signal IS PRESENT — a real, recent reading (e.g. weekly export sales publish on Thursdays, so last week's number is still valid for days). You MUST frame it WITH its stated age ("export sales as of <date> showed …"), NOT as today's number — and you must NOT treat it as a gap. A dated reading can still inform the read; just be honest it isn't today's figure.
+   (c) GAP — the corpus contains a "(DATA GAP — … UNAVAILABLE this read …)" line: that sub-signal is genuinely missing (no reading, or a real outage past its publish cycle). You MUST: (i) in that bucket's watched_context, explicitly STATE which sub-signal is unavailable (e.g. "export-sales data unavailable — no FAS pace or China figure"); (ii) NOT imply or assert any quantitative read for it, and NOT let the bucket read as complete; (iii) you may still reason from PRESENT sub-signals and cited (qualitative) news; (iv) NEVER fabricate the missing figure. A bucket missing its lead sub-signal is lower-confidence and usually NOT a strong driver on that dimension.
+   Only state (c) is a gap. Never downgrade a DATED reading (b) to "unavailable", and never upgrade a DATED reading to today's number. Honesty about age and absence is required, not optional.
 
 OUTPUT:
 - signal: the three-state relative lean defined above, following from the dominant tension.
@@ -264,6 +270,24 @@ type Corpus = {
   hash: string;
   sampleData: boolean;
 };
+
+/** Keep-last-good age annotation for a demand reading (rule 14a). Export sales
+ *  are weekly, so a recent reading is still valid for days — but it must be framed
+ *  WITH its age, never as today's number. Empty for fresh/current readings. */
+function demandAgeNote(b: DemandBundle, now: Date): string {
+  const age = ageDays(b.fetchedAt, now.getTime());
+  if (!Number.isFinite(age)) return "";
+  const per = b.period ?? "the period shown";
+  if (b.dataType === "export_sales") {
+    return exportState([b], now.getTime()).state === "dated"
+      ? ` [DATED keep-last-good — last successful FAS pull ~${Math.round(age)}d ago; this is the most recent REAL export reading (as of ${per}), NOT today's number. Frame it WITH its age ("export sales as of ${per} showed …"); it is PRESENT, NOT a gap.]`
+      : "";
+  }
+  // ethanol/crush: flag only when a reading has gone notably stale
+  return age > 21
+    ? ` [DATED — last retrieved ~${Math.round(age)}d ago; frame as of ${per}, not today.]`
+    : "";
+}
 
 /** Emit an explicit data-gap line so the engine discloses a missing sub-source
  *  instead of presenting the bucket as complete (rule 14). No-op when nothing
@@ -387,12 +411,14 @@ async function assembleCorpus(
     d += 1;
     const id = `D${d}`;
     const label = `USDA ${DEMAND_LABEL[b.dataType]} (${b.period ?? b.marketingYear})`;
-    lines.push(`[${id}] ${label} — ${b.frames.map(fmtDemandFrame).join("; ")}`);
+    lines.push(
+      `[${id}] ${label}${demandAgeNote(b, now)} — ${b.frames.map(fmtDemandFrame).join("; ")}`,
+    );
     sources.set(id, { id, label, url: b.sourceUrl || null });
   }
   if (demand.length === 0)
     lines.push("(no demand data cached yet — sources may be temporarily unavailable)");
-  emitDataGap(lines, "demand", demandGaps(crop, demand));
+  emitDataGap(lines, "demand", demandGaps(crop, demand, now.getTime()));
   lines.push("");
 
   // 1d. MONEY FLOW — CFTC Managed-Money positioning; percentile is the frame (rule 8)
@@ -406,7 +432,14 @@ async function assembleCorpus(
     mfi += 1;
     const id = `M${mfi}`;
     const label = `CFTC COT Managed Money (report ${b.reportDate})`;
-    lines.push(`[${id}] ${label} — ${fmtCot(b)}`);
+    // COT publishes weekly (Fridays); a kept-last-good reading older than ~10 days
+    // is dated — frame it as of its report date, not current positioning.
+    const cotAge = ageDays(b.reportDate, now.getTime());
+    const dated =
+      cotAge > 10
+        ? ` [DATED keep-last-good — positions as of ${b.reportDate}, ~${Math.round(cotAge)}d ago; frame with its age, not as today's positioning]`
+        : "";
+    lines.push(`[${id}] ${label}${dated} — ${fmtCot(b)}`);
     sources.set(id, { id, label, url: b.sourceUrl || null });
   }
   if (cot.length === 0) lines.push("(no COT data cached yet)");

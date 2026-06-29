@@ -31,6 +31,10 @@ export type DemandBundle = {
   releasedAt: string | null;
   sourceUrl: string; // keyless grounding link
   frames: DemandFrame[];
+  /** when this reading was last successfully stored — drives keep-last-good age
+   *  framing (a failed pull keeps the prior row; we show how old it is). Set at
+   *  read time from the cache; absent on a fresh provider bundle (pre-write). */
+  fetchedAt?: string | null;
 };
 
 export type DemandProvider = {

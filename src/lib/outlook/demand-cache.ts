@@ -52,6 +52,7 @@ export async function readLatestDemandBundles(): Promise<DemandBundle[]> {
         releasedAt: r.released_at,
         sourceUrl: r.source_url ?? "",
         frames: Array.isArray(r.payload) ? (r.payload as DemandFrame[]) : [],
+        fetchedAt: r.fetched_at,
       });
     }
     return out;
