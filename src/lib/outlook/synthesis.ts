@@ -19,6 +19,12 @@ import { getDemandSnapshot } from "./demand-ingest";
 import { getMacroSnapshot } from "./macro-ingest";
 import { MACRO_LABEL, type MacroBundle, type MacroFrame } from "./macro-types";
 import {
+  conditionGaps,
+  demandGaps,
+  macroGaps,
+  supplyGaps,
+} from "./manifest";
+import {
   computeSeasonalWeighting,
   SEASON_BUCKET_LABEL,
   type Emphasis,
@@ -158,6 +164,8 @@ Record your read by calling the record_market_read tool. Follow these rules with
 
 13. NAME THE DOMINANT TENSION (design §2.3 — do not blur to "mixed"). Emit 'dominant_tension': the single main axis of disagreement in this read — the bullish force (force_up) vs the bearish force (force_down), which side currently leans (up/down/balanced), and why it leans that way plus what could flip it. The 'signal' MUST follow from this: a "mixed" signal is only valid when EXPLAINED by a real, named tension (e.g. "tightening old-crop carryout vs. rising new-crop acreage — supply leads near-term, but June 30 acreage could flip it"), never used as a vague catch-all. If one side clearly dominates, say favorable/unfavorable and let force_up/force_down show the minority force.
 
+14. DISCLOSE DATA GAPS — NEVER PRESENT A PARTIAL BUCKET AS COMPLETE. When the corpus contains a "(DATA GAP — … UNAVAILABLE this read …)" line for a bucket, a sub-signal that bucket normally carries is missing this read (e.g. weekly export sales / China share absent while ethanol & crush are present). You MUST: (a) in that bucket's watched_context entry, explicitly STATE which sub-signal is unavailable (e.g. "export-sales data unavailable this read — no FAS pace or China figure"); (b) NOT imply or assert any quantitative read for the missing sub-signal, and NOT let the bucket read as if complete; (c) you may still reason from the PRESENT sub-signals in that bucket and from cited news (clearly attributed, qualitative); (d) NEVER fabricate or estimate the missing figure. A bucket missing its lead sub-signal should generally be lower-confidence and is usually NOT a strong driver on the missing dimension. Honesty about what is missing is required, not optional.
+
 OUTPUT:
 - signal: the three-state relative lean defined above, following from the dominant tension.
 - summary: 2–4 calm, plain sentences on what is currently pushing this crop's price up versus down, and the net lean. No fabricated numbers; you may reference the trend and the USDA figures provided.
@@ -257,6 +265,16 @@ type Corpus = {
   sampleData: boolean;
 };
 
+/** Emit an explicit data-gap line so the engine discloses a missing sub-source
+ *  instead of presenting the bucket as complete (rule 14). No-op when nothing
+ *  is missing. */
+function emitDataGap(lines: string[], bucket: string, missing: string[]): void {
+  if (missing.length === 0) return;
+  lines.push(
+    `(DATA GAP — these ${bucket} sub-signals are UNAVAILABLE this read: ${missing.join("; ")}. Per rule 14 you MUST name this gap in your ${bucket} watched_context, MUST NOT imply a quantitative read for the missing sub-signal(s), and MUST NOT fabricate the missing figures. You may still reason from the present ${bucket} sub-signals and any cited news.)`,
+  );
+}
+
 function fmtUnit(unit: string): string {
   if (/^PCT/i.test(unit) || unit === "PCT") return "%";
   if (/BU \/ ACRE/i.test(unit)) return " bu/ac";
@@ -308,6 +326,7 @@ async function assembleCorpus(
     }
   }
   if (u === 0) lines.push("(no USDA data cached for this crop)");
+  emitDataGap(lines, "conditions", conditionGaps(reports));
   lines.push("");
 
   // 1b. USDA SUPPLY — WASDE balance sheet + Grain Stocks + Acreage, reference-framed
@@ -354,6 +373,7 @@ async function assembleCorpus(
     sources.set(id, { id, label, url: b.sourceUrl || null });
   }
   if (supply.length === 0) lines.push("(no supply data cached yet)");
+  emitDataGap(lines, "supply", supplyGaps(supply));
   lines.push("");
 
   // 1c. USDA DEMAND — export sales (+ China), ethanol, crush; pace-vs-target framed
@@ -372,6 +392,7 @@ async function assembleCorpus(
   }
   if (demand.length === 0)
     lines.push("(no demand data cached yet — sources may be temporarily unavailable)");
+  emitDataGap(lines, "demand", demandGaps(crop, demand));
   lines.push("");
 
   // 1d. MONEY FLOW — CFTC Managed-Money positioning; percentile is the frame (rule 8)
@@ -406,6 +427,7 @@ async function assembleCorpus(
     sources.set(id, { id, label, url: b.sourceUrl || null });
   }
   if (macro.length === 0) lines.push("(no macro data cached yet)");
+  emitDataGap(lines, "macro", macroGaps(macro));
   lines.push(
     "(The macro backdrop above is ALSO shown to the farmer as an always-visible 'macro context' strip, separate from your factors. So include a macro [X#] item in your FACTORS only when it is MATERIALLY DRIVING this read per rule 9 — otherwise leave macro out of the factors; it is already visible in the strip.)",
   );
