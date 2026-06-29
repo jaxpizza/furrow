@@ -210,11 +210,15 @@ function FactorRow({ factor }: { factor: OutlookFactorV2 }) {
 export function OutlookCard({
   outlook,
   apiKeyMissing = false,
+  nowMs,
 }: {
   outlook: OutlookV2 | null;
   /** true only when ANTHROPIC_API_KEY is genuinely unset — so we don't tell the
    *  user to fix a key that's already set when the real cause is a model outage. */
   apiKeyMissing?: boolean;
+  /** server render time (ms) — used to flag a stale last-good read without an
+   *  impure Date.now() in render. */
+  nowMs: number;
 }) {
   if (!outlook) {
     return (
@@ -256,6 +260,12 @@ export function OutlookCard({
     .filter(Boolean)
     .join(" · ");
 
+  // A healthy read is always regenerated within the 6h refresh window, so a read
+  // older than that is being served as last-good during a synthesis outage —
+  // disclose it rather than letting an old read read as current.
+  const ageMs = nowMs - Date.parse(outlook.generatedAt);
+  const stale = Number.isFinite(ageMs) && ageMs > 6 * 60 * 60 * 1000;
+
   return (
     <Card className="flex flex-col p-5 md:col-span-1">
       <div className="flex items-center justify-between gap-2">
@@ -267,6 +277,17 @@ export function OutlookCard({
         </div>
         <SignalBadge signal={outlook.signal} />
       </div>
+
+      {stale && (
+        <div className="mt-3 flex items-start gap-2 rounded-md border border-[var(--neg)]/30 bg-[var(--neg)]/8 px-3 py-2">
+          <Info className="mt-0.5 size-3.5 shrink-0 text-[var(--neg)]" />
+          <p className="text-text-secondary text-[11px] leading-relaxed">
+            Last updated {fmtAgo(ageMs)} — couldn&apos;t refresh the read just now,
+            so this is the last generated one. Figures and report countdowns in the
+            factors may be out of date (the seasonal frame above is current).
+          </p>
+        </div>
+      )}
 
       {outlook.seasonalContext && <SeasonalLine ctx={outlook.seasonalContext} />}
 
@@ -333,6 +354,13 @@ export function OutlookCard({
       </div>
     </Card>
   );
+}
+
+function fmtAgo(ms: number): string {
+  const h = ms / 3_600_000;
+  if (h < 1) return `${Math.max(1, Math.round(ms / 60_000))} min ago`;
+  if (h < 24) return `${Math.round(h)}h ago`;
+  return `${Math.round(h / 24)}d ago`;
 }
 
 function fmtDay(iso: string): string {

@@ -159,6 +159,7 @@ export default async function MarketsPage({
         <OutlookCard
           outlook={outlook}
           apiKeyMissing={!process.env.ANTHROPIC_API_KEY}
+          nowMs={now.getTime()}
         />
       </div>
     </div>

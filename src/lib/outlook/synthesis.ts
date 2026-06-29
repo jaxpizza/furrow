@@ -718,6 +718,26 @@ function hashCorpus(
 
 const memCache = new Map<string, { outlook: OutlookV2; ts: number }>();
 
+/** Hard cap on serving a cached read during a prolonged synthesis outage. Beyond
+ *  this we'd rather say "couldn't refresh" than render a day-and-a-half-old read. */
+const MAX_SERVE_AGE_MS = 36 * 60 * 60 * 1000;
+
+/**
+ * Serve the last-good cached read when generation is unavailable. Returns null if
+ * there's nothing cached or it's older than the serve cap. The freshly-computed
+ * seasonal frame is re-attached so the report countdowns ("in N days") are current
+ * even on an old read; the card banners the staleness from the (old) generatedAt.
+ */
+function serveLastGood(
+  latest: { payload: unknown; generated_at: string } | null,
+  corpus: Corpus,
+): OutlookV2 | null {
+  if (!latest?.payload) return null;
+  const age = Date.now() - new Date(latest.generated_at).getTime();
+  if (age > MAX_SERVE_AGE_MS) return null;
+  return { ...(latest.payload as OutlookV2), seasonalContext: corpus.seasonalContext };
+}
+
 export async function getMarketOutlook(
   crop: Crop,
   farmId: string,
@@ -743,13 +763,13 @@ export async function getMarketOutlook(
   if (mem && Date.now() - mem.ts < MAX_AGE_MS) return mem.outlook;
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    return latest?.payload ? (latest.payload as OutlookV2) : null;
+    return serveLastGood(latest, corpus);
   }
 
   const generated = await generate(crop, corpus, now);
   if (!generated) {
     // generation failed — serve the last good read rather than nothing
-    return latest?.payload ? (latest.payload as OutlookV2) : null;
+    return serveLastGood(latest, corpus);
   }
 
   await writeOutlookV2(
