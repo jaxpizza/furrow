@@ -19,6 +19,8 @@ import {
   deltaFromHistory,
   getFuturesHistory,
 } from "@/lib/markets/service";
+import { SAMPLE_BASIS_CENTS, sampleHistory, sampleQuote } from "@/lib/markets/sample";
+import type { CashPrice, Symbol as MktSymbol } from "@/lib/markets/types";
 import {
   contractMonths,
   CROP_LABEL,
@@ -48,16 +50,27 @@ export default async function MarketsPage({
   const now = new Date();
 
   // Run the break-even evaluator for this farm on load (the same evaluator the
-  // cron route calls) so alerts fire even before scheduling is wired up.
-  await evaluateFarm(activeFarm.id);
+  // cron route calls) so alerts fire even before scheduling is wired up. Never let
+  // it block the page render.
+  try {
+    await evaluateFarm(activeFarm.id);
+  } catch (e) {
+    console.warn("[markets] evaluateFarm failed", e);
+  }
 
-  // Everything below consumes the two provider seams, never the raw API.
-  const [history, cash, outlook, target] = await Promise.all([
+  // Everything below consumes the two provider seams, never the raw API. Use
+  // allSettled so one provider throwing (e.g. a DB hiccup) can't 500 the page
+  // before the graceful per-card fallbacks (incl. the outlook-null state) render.
+  const [historyR, cashR, outlookR, targetR] = await Promise.allSettled([
     getFuturesHistory(symbol, now),
     cashProvider.getCashPrice(crop, activeFarm.id),
     getMarketOutlook(crop, activeFarm.id, now),
     getBreakevenTarget(activeFarm.id, crop),
   ]);
+  const history = historyR.status === "fulfilled" ? historyR.value : sampleHistory(symbol, now);
+  const cash = cashR.status === "fulfilled" ? cashR.value : fallbackCash(crop, symbol, now);
+  const outlook = outlookR.status === "fulfilled" ? outlookR.value : null;
+  const target = targetR.status === "fulfilled" ? targetR.value : null;
 
   const effectiveBE = target?.effectiveBreakeven ?? null;
   const profitTargetPrice =
@@ -176,4 +189,31 @@ function relDays(days: number): string {
   if (days < 365) return `${Math.round(days / 30)} months ago`;
   const y = Math.round(days / 365);
   return `${y} year${y === 1 ? "" : "s"} ago`;
+}
+
+/** Last-ditch cash fallback so a cash-provider failure can't blank the page —
+ *  a clearly sample-labeled, stale figure rather than a 500. */
+function fallbackCash(crop: Crop, symbol: MktSymbol, now: Date): CashPrice {
+  const q = sampleQuote(symbol, now);
+  const front = contractMonths(symbol, now)[0];
+  const basisCents = SAMPLE_BASIS_CENTS[symbol];
+  return {
+    crop,
+    cashPrice: Math.round((q.price + basisCents / 100) * 10000) / 10000,
+    basisCents,
+    basisUpdatedAt: null,
+    elevatorName: null,
+    futuresRef: {
+      symbol,
+      price: q.price,
+      contractMonth: formatContractMonth(front),
+      asOf: q.asOf,
+      stale: true,
+      source: q.source,
+      change: q.change,
+      changePercent: q.changePercent,
+    },
+    source: "sample-basis",
+    hasBasis: false,
+  };
 }
