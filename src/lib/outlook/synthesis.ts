@@ -408,6 +408,14 @@ async function assembleCorpus(
   );
   let d = 0;
   for (const b of demand) {
+    // At state (c) the export reading is too old to use — skip its frames so the
+    // LLM can't cite a stale number; the DATA GAP line below discloses it. A
+    // DATED reading (state b) is still shown, tagged with its age.
+    if (
+      b.dataType === "export_sales" &&
+      exportState([b], now.getTime()).state === "absent"
+    )
+      continue;
     d += 1;
     const id = `D${d}`;
     const label = `USDA ${DEMAND_LABEL[b.dataType]} (${b.period ?? b.marketingYear})`;
@@ -743,7 +751,10 @@ function hashCorpus(
   const tch = tech
     ? `${tech.price}:${tech.trend}:${tech.rsi}:${tech.rangePercentile}:${tech.atKeyLevel}:${tech.basedOnSample}`
     : "none";
-  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}::${mf}::${mac}::${tch}::${seasonalLine}`;
+  // Freshness STATE (not raw age) so a keep-last-good transition (fresh→dated→
+  // absent/gap) regenerates the read, without busting the cache every day.
+  const fresh = `${exportState(demand).state}:${demandGaps(crop, demand).sort().join("/")}`;
+  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}::${mf}::${mac}::${tch}::${seasonalLine}::${fresh}`;
   return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 
