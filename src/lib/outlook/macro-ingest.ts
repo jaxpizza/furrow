@@ -5,19 +5,23 @@ import {
   readLatestMacroBundles,
   writeMacroBundle,
 } from "./macro-cache";
+import { bucketStale, macroComplete } from "./manifest";
 import type { MacroBundle } from "./macro-types";
 import { macroProvider } from "./providers/macro";
 
 const MACRO_TTL_MS = 6 * 60 * 60 * 1000; // dollar/crude daily; weather a few times/day
 
-function isStale(last: number | null): boolean {
-  return last == null || Date.now() - last >= MACRO_TTL_MS;
-}
-
-/** Fetch + frame + store macro signals when stale. Never throws. */
+/** Fetch + frame + store macro signals when stale — or sooner if a signal
+ *  (dollar / crude / Corn Belt weather) is missing. Never throws. */
 export async function refreshMacro(force = false): Promise<number> {
   try {
-    if (!force && !isStale(await macroLastFetched())) return 0;
+    if (!force) {
+      const [last, cached] = await Promise.all([
+        macroLastFetched(),
+        readLatestMacroBundles(),
+      ]);
+      if (!bucketStale(last, macroComplete(cached), MACRO_TTL_MS)) return 0;
+    }
     const bundles = await macroProvider.getBundles();
     let n = 0;
     for (const b of bundles) if (await writeMacroBundle(b)) n++;

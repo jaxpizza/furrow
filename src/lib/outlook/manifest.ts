@@ -30,6 +30,23 @@ export const SUBSOURCE_LABEL: Record<string, string> = {
 
 const CROPS: Crop[] = ["corn", "soybean"];
 
+/** When a bucket is INCOMPLETE (a sub-source failed/absent), retry on this short
+ *  cadence instead of waiting the full TTL because a sibling source is fresh —
+ *  so a transient outage (e.g. FAS 503) self-heals within ~30 min rather than 12h.
+ *  Still gated (not every page load) to avoid hammering the working sources. */
+export const INCOMPLETE_TTL_MS = 30 * 60 * 1000;
+
+/** Staleness gate that shortens the TTL when the bucket is missing an expected
+ *  sub-source. `complete` comes from the per-bucket xxxComplete() helpers. */
+export function bucketStale(
+  last: number | null,
+  complete: boolean,
+  normalTtl: number,
+): boolean {
+  if (last == null) return true;
+  return Date.now() - last >= (complete ? normalTtl : INCOMPLETE_TTL_MS);
+}
+
 // ── DEMAND ───────────────────────────────────────────────────────────────────
 export function demandExpected(crop: Crop): DemandDataType[] {
   // ethanol is corn-only, crush is soy-only; export sales applies to both.

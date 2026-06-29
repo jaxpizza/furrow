@@ -5,19 +5,23 @@ import {
   readLatestDemandBundles,
   writeDemandBundle,
 } from "./demand-cache";
+import { bucketStale, demandComplete } from "./manifest";
 import { demandProvider } from "./providers/usda-demand";
 import type { DemandBundle } from "./demand-types";
 
 const DEMAND_TTL_MS = 12 * 60 * 60 * 1000; // export sales/ethanol refresh ~weekly
 
-function isStale(last: number | null): boolean {
-  return last == null || Date.now() - last >= DEMAND_TTL_MS;
-}
-
-/** Fetch + frame + store demand data when stale. Never throws. */
+/** Fetch + frame + store demand data when stale — or sooner if a sub-source
+ *  (e.g. FAS export sales) is missing, so the gap self-heals fast. Never throws. */
 export async function refreshDemand(force = false): Promise<number> {
   try {
-    if (!force && !isStale(await demandLastFetched())) return 0;
+    if (!force) {
+      const [last, cached] = await Promise.all([
+        demandLastFetched(),
+        readLatestDemandBundles(),
+      ]);
+      if (!bucketStale(last, demandComplete(cached), DEMAND_TTL_MS)) return 0;
+    }
     const bundles = await demandProvider.getBundles();
     let n = 0;
     for (const b of bundles) if (await writeDemandBundle(b)) n++;

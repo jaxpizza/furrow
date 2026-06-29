@@ -6,19 +6,23 @@ import {
   readReportCalendar,
   writeEconBundle,
 } from "./econ-cache";
+import { bucketStale, supplyComplete } from "./manifest";
 import { econProvider } from "./providers/usda-econ";
 import type { EconBundle, ReportCalendarEntry } from "./econ-types";
 
 const ECON_TTL_MS = 12 * 60 * 60 * 1000; // USDA reports don't change intraday
 
-function isStale(last: number | null): boolean {
-  return last == null || Date.now() - last >= ECON_TTL_MS;
-}
-
-/** Fetch + frame + store the supply data when stale. Never throws. */
+/** Fetch + frame + store the supply data when stale — or sooner if an expected
+ *  sub-report (WASDE / Grain Stocks / Acreage) is missing. Never throws. */
 export async function refreshEcon(force = false): Promise<number> {
   try {
-    if (!force && !isStale(await econLastFetched())) return 0;
+    if (!force) {
+      const [last, cached] = await Promise.all([
+        econLastFetched(),
+        readLatestEconBundles(),
+      ]);
+      if (!bucketStale(last, supplyComplete(cached), ECON_TTL_MS)) return 0;
+    }
     const bundles = await econProvider.getBundles();
     let n = 0;
     for (const b of bundles) if (await writeEconBundle(b)) n++;

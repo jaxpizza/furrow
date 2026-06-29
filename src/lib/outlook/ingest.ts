@@ -8,6 +8,7 @@ import {
   writeNewsItems,
   writeReportBundle,
 } from "./cache";
+import { bucketStale, conditionsComplete } from "./manifest";
 import { reportProvider } from "./providers/nass";
 import { newsProvider } from "./providers/rss-news";
 import type { NewsItem, ReportBundle } from "./types";
@@ -34,7 +35,13 @@ export async function refreshNews(force = false): Promise<number> {
 /** Fetch fresh USDA reports (if stale) and write them. Never throws. */
 export async function refreshReports(force = false): Promise<number> {
   try {
-    if (!force && !isStale(await reportsLastFetched(), REPORTS_TTL_MS)) return 0;
+    if (!force) {
+      const [last, cached] = await Promise.all([
+        reportsLastFetched(),
+        readReportBundles(),
+      ]);
+      if (!bucketStale(last, conditionsComplete(cached), REPORTS_TTL_MS)) return 0;
+    }
     const bundles = await reportProvider.getReports();
     let written = 0;
     for (const b of bundles) if (await writeReportBundle(b)) written++;
