@@ -3,14 +3,16 @@ import { createServerClient } from "@supabase/ssr";
 
 import type { Database } from "@/lib/types/database";
 
-/** Routes reachable without an authenticated session. The alert evaluator is
- *  here because it self-authenticates (CRON_SECRET) for scheduled calls that
- *  carry no user session — without this, cron hits the sign-in redirect. */
+/** Routes reachable without an authenticated session. The cron endpoints are
+ *  here because they self-authenticate (CRON_SECRET) for scheduled calls that
+ *  carry no user session — without this, cron hits the sign-in redirect before
+ *  the route's own auth ever runs. */
 const PUBLIC_PATHS = [
   "/sign-in",
   "/sign-up",
   "/auth",
   "/api/alerts/evaluate",
+  "/api/cron/refresh",
 ];
 
 function isPublicPath(pathname: string) {
