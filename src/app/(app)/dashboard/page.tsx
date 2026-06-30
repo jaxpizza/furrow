@@ -219,7 +219,11 @@ export default async function DashboardPage() {
         </section>
 
         {/* ── BREAK-EVEN + WEATHER ─────────────────────────────────── */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* items-start so each section sizes to its content: the cards use
+            h-full, which would otherwise stretch to the grid row height and,
+            with the label above them, overflow ~one label-height into the news
+            section below. */}
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
           <section className="space-y-2">
             <SectionLabel>Break-even status</SectionLabel>
             <BreakevenStatus pulses={pulses} />
