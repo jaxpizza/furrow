@@ -9,6 +9,9 @@ import { MarketReadPulse } from "@/components/dashboard/market-read-pulse";
 import { NewsFeed } from "@/components/dashboard/news-feed";
 import { PricePulseCard } from "@/components/dashboard/price-pulse-card";
 import { WeatherSnapshot } from "@/components/dashboard/weather-snapshot";
+import { HoldingsSummary, type CropHolding } from "@/components/dashboard/holdings-summary";
+import { currentCropYear, type Position } from "@/lib/inputs/ledger";
+import { getHoldings } from "@/lib/inputs/queries";
 import { freshnessLabel } from "@/components/terminal/lib";
 import { getBreakevenTarget } from "@/lib/alerts/queries";
 import { ACTIVE_FARM_COOKIE } from "@/lib/constants";
@@ -64,7 +67,7 @@ export default async function DashboardPage() {
   // market read is READ-ONLY (readLatestOutlookV2) — the home shows the latest
   // computed read instantly and never triggers a generation. allSettled means a
   // single failing source degrades one card, never the page.
-  const [cornHist, soyHist, cornCash, soyCash, cornTgt, soyTgt, techR, cornRead, soyRead, newsR, weatherR] =
+  const [cornHist, soyHist, cornCash, soyCash, cornTgt, soyTgt, techR, cornRead, soyRead, newsR, weatherR, holdingsR] =
     await Promise.allSettled([
       getFuturesHistory(CROP_TO_SYMBOL.corn, now),
       getFuturesHistory(CROP_TO_SYMBOL.soybean, now),
@@ -77,6 +80,7 @@ export default async function DashboardPage() {
       readLatestOutlookV2("soybean"),
       readNewsItems(8),
       loadWeather(farmId, now),
+      getHoldings(farmId, currentCropYear()),
     ]);
 
   const ok = <T,>(r: PromiseSettledResult<T>, fb: T): T => (r.status === "fulfilled" ? r.value : fb);
@@ -143,6 +147,26 @@ export default async function DashboardPage() {
 
   const weather = ok(weatherR, null);
 
+  // Holdings: bushels on hand (from the Inputs ledgers) × today's cash, vs break-even.
+  const emptyPos: Position = {
+    produced: 0, sold: 0, remaining: 0, pctSold: null, avgPrice: null, revenue: 0,
+    ownedRemaining: 0, commercialRemaining: 0, unassignedRemaining: 0,
+  };
+  const holdings = ok(holdingsR, { corn: emptyPos, soybean: emptyPos } as Record<Crop, Position>);
+  const cropHoldings: CropHolding[] = pulses.map((p) => {
+    const pos = holdings[p.crop] ?? emptyPos;
+    const cash = p.cashPrice;
+    return {
+      crop: p.crop,
+      label: p.label,
+      onHand: pos.remaining,
+      cashPrice: cash,
+      breakeven: p.breakeven.effective,
+      pctSold: pos.pctSold,
+      holdingsValue: cash != null ? Math.round(pos.remaining * cash * 100) / 100 : null,
+    };
+  });
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
@@ -151,6 +175,9 @@ export default async function DashboardPage() {
       />
 
       <div className="space-y-6">
+        {/* ── HOLDINGS ─────────────────────────────────────────────── */}
+        <HoldingsSummary holdings={cropHoldings} />
+
         {/* ── PRICE PULSE ──────────────────────────────────────────── */}
         <section className="space-y-2">
           <SectionLabel>Price pulse</SectionLabel>

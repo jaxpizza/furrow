@@ -3,48 +3,62 @@ import "server-only";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Crop } from "@/lib/types/database";
 
-/** The farmer's marketing position, with the derived fields the personal read
- *  cares about (exposure). Available now for the outlook/personal layer to fuse
- *  into the read — the data is real; deep read-text fusion is the follow-up. */
-export type CropPositionRead = {
-  crop: Crop;
-  totalProductionBu: number | null;
-  bushelsSold: number | null;
-  bushelsRemaining: number | null; // produced − sold (the exposure)
-  pctSold: number | null; // 0–100
-  avgSoldPrice: number | null;
-};
+import {
+  computePosition,
+  type HarvestEntry,
+  type Position,
+  type SaleEntry,
+  type StorageLocation,
+  type StorageKind,
+} from "./ledger";
 
-export async function getCropPosition(
+const CROPS: Crop[] = ["corn", "soybean"];
+
+/** Per-crop marketing position for a crop year, summed from the ledgers. Used by
+ *  the dashboard holdings summary and available to the personal read layer. */
+export async function getHoldings(
   farmId: string,
-  crop: Crop,
-): Promise<CropPositionRead | null> {
-  try {
-    const db = createServiceRoleClient();
-    const { data } = await db
-      .from("crop_positions")
-      .select("total_production_bu, bushels_sold, avg_sold_price")
-      .eq("farm_id", farmId)
-      .eq("crop", crop)
-      .maybeSingle();
-    if (!data) return null;
-    const produced = data.total_production_bu;
-    const sold = data.bushels_sold ?? 0;
-    const remaining =
-      produced != null ? Math.max(0, Math.round((produced - sold) * 10) / 10) : null;
-    const pctSold =
-      produced != null && produced > 0
-        ? Math.min(100, Math.max(0, Math.round((sold / produced) * 100)))
-        : null;
-    return {
-      crop,
-      totalProductionBu: produced,
-      bushelsSold: data.bushels_sold,
-      bushelsRemaining: remaining,
-      pctSold,
-      avgSoldPrice: data.avg_sold_price,
-    };
-  } catch {
-    return null;
+  cropYear: number,
+): Promise<Record<Crop, Position>> {
+  const db = createServiceRoleClient();
+  const [{ data: locs }, { data: harv }, { data: sales }] = await Promise.all([
+    db.from("storage_locations").select("*").eq("farm_id", farmId),
+    db.from("harvest_entries").select("*").eq("farm_id", farmId).eq("crop_year", cropYear),
+    db.from("sale_entries").select("*").eq("farm_id", farmId).eq("crop_year", cropYear),
+  ]);
+  const locations: StorageLocation[] = (locs ?? []).map((l) => ({
+    id: l.id,
+    name: l.name,
+    kind: l.kind as StorageKind,
+    capacityBu: l.capacity_bu,
+    storageCostCentsPerBuMonth: l.storage_cost_cents_per_bu_month,
+  }));
+  const harvests: (HarvestEntry & { crop: Crop })[] = (harv ?? []).map((h) => ({
+    crop: h.crop,
+    id: h.id,
+    bushels: h.bushels,
+    storageLocationId: h.storage_location_id,
+    entryDate: h.entry_date,
+    moisture: h.moisture,
+    notes: h.notes,
+  }));
+  const allSales: (SaleEntry & { crop: Crop })[] = (sales ?? []).map((s) => ({
+    crop: s.crop,
+    id: s.id,
+    bushels: s.bushels,
+    storageLocationId: s.storage_location_id,
+    price: s.price,
+    buyer: s.buyer,
+    entryDate: s.entry_date,
+  }));
+
+  const out = {} as Record<Crop, Position>;
+  for (const crop of CROPS) {
+    out[crop] = computePosition(
+      harvests.filter((h) => h.crop === crop),
+      allSales.filter((s) => s.crop === crop),
+      locations,
+    );
   }
+  return out;
 }

@@ -180,37 +180,37 @@ export type Database = {
         }
         Relationships: []
       }
-      crop_positions: {
+      crop_year_settings: {
         Row: {
-          avg_sold_price: number | null
-          bushels_sold: number | null
+          acres: number | null
           crop: Database["public"]["Enums"]["crop"]
+          crop_year: number
+          expected_yield: number | null
           farm_id: string
           id: string
-          total_production_bu: number | null
           updated_at: string
         }
         Insert: {
-          avg_sold_price?: number | null
-          bushels_sold?: number | null
+          acres?: number | null
           crop: Database["public"]["Enums"]["crop"]
+          crop_year: number
+          expected_yield?: number | null
           farm_id: string
           id?: string
-          total_production_bu?: number | null
           updated_at?: string
         }
         Update: {
-          avg_sold_price?: number | null
-          bushels_sold?: number | null
+          acres?: number | null
           crop?: Database["public"]["Enums"]["crop"]
+          crop_year?: number
+          expected_yield?: number | null
           farm_id?: string
           id?: string
-          total_production_bu?: number | null
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "crop_positions_farm_id_fkey"
+            foreignKeyName: "crop_year_settings_farm_id_fkey"
             columns: ["farm_id"]
             isOneToOne: false
             referencedRelation: "farms"
@@ -252,6 +252,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "elevator_basis_farm_id_fkey"
+            columns: ["farm_id"]
+            isOneToOne: false
+            referencedRelation: "farms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_entries: {
+        Row: {
+          category: string
+          created_at: string
+          crop: Database["public"]["Enums"]["crop"]
+          crop_year: number
+          description: string | null
+          entry_date: string
+          farm_id: string
+          id: string
+          line_total: number | null
+          quantity: number
+          unit_cost: number
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          crop: Database["public"]["Enums"]["crop"]
+          crop_year: number
+          description?: string | null
+          entry_date?: string
+          farm_id: string
+          id?: string
+          line_total?: number | null
+          quantity?: number
+          unit_cost?: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          crop?: Database["public"]["Enums"]["crop"]
+          crop_year?: number
+          description?: string | null
+          entry_date?: string
+          farm_id?: string
+          id?: string
+          line_total?: number | null
+          quantity?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_entries_farm_id_fkey"
             columns: ["farm_id"]
             isOneToOne: false
             referencedRelation: "farms"
@@ -415,6 +465,60 @@ export type Database = {
           },
         ]
       }
+      harvest_entries: {
+        Row: {
+          bushels: number
+          created_at: string
+          crop: Database["public"]["Enums"]["crop"]
+          crop_year: number
+          entry_date: string
+          farm_id: string
+          id: string
+          moisture: number | null
+          notes: string | null
+          storage_location_id: string | null
+        }
+        Insert: {
+          bushels: number
+          created_at?: string
+          crop: Database["public"]["Enums"]["crop"]
+          crop_year: number
+          entry_date?: string
+          farm_id: string
+          id?: string
+          moisture?: number | null
+          notes?: string | null
+          storage_location_id?: string | null
+        }
+        Update: {
+          bushels?: number
+          created_at?: string
+          crop?: Database["public"]["Enums"]["crop"]
+          crop_year?: number
+          entry_date?: string
+          farm_id?: string
+          id?: string
+          moisture?: number | null
+          notes?: string | null
+          storage_location_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harvest_entries_farm_id_fkey"
+            columns: ["farm_id"]
+            isOneToOne: false
+            referencedRelation: "farms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harvest_entries_storage_location_id_fkey"
+            columns: ["storage_location_id"]
+            isOneToOne: false
+            referencedRelation: "storage_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       harvests: {
         Row: {
           bushels: number | null
@@ -452,68 +556,6 @@ export type Database = {
             columns: ["field_id"]
             isOneToOne: false
             referencedRelation: "fields"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      input_cost_items: {
-        Row: {
-          chemicals: number | null
-          crop: Database["public"]["Enums"]["crop"]
-          crop_insurance: number | null
-          drying_storage: number | null
-          farm_id: string
-          fertilizer: number | null
-          fuel_oil: number | null
-          id: string
-          interest: number | null
-          labor: number | null
-          land: number | null
-          machinery: number | null
-          other: number | null
-          seed: number | null
-          updated_at: string
-        }
-        Insert: {
-          chemicals?: number | null
-          crop: Database["public"]["Enums"]["crop"]
-          crop_insurance?: number | null
-          drying_storage?: number | null
-          farm_id: string
-          fertilizer?: number | null
-          fuel_oil?: number | null
-          id?: string
-          interest?: number | null
-          labor?: number | null
-          land?: number | null
-          machinery?: number | null
-          other?: number | null
-          seed?: number | null
-          updated_at?: string
-        }
-        Update: {
-          chemicals?: number | null
-          crop?: Database["public"]["Enums"]["crop"]
-          crop_insurance?: number | null
-          drying_storage?: number | null
-          farm_id?: string
-          fertilizer?: number | null
-          fuel_oil?: number | null
-          id?: string
-          interest?: number | null
-          labor?: number | null
-          land?: number | null
-          machinery?: number | null
-          other?: number | null
-          seed?: number | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "input_cost_items_farm_id_fkey"
-            columns: ["farm_id"]
-            isOneToOne: false
-            referencedRelation: "farms"
             referencedColumns: ["id"]
           },
         ]
@@ -959,6 +1001,98 @@ export type Database = {
           report_type?: string
         }
         Relationships: []
+      }
+      sale_entries: {
+        Row: {
+          bushels: number
+          buyer: string | null
+          created_at: string
+          crop: Database["public"]["Enums"]["crop"]
+          crop_year: number
+          entry_date: string
+          farm_id: string
+          id: string
+          price: number
+          storage_location_id: string | null
+        }
+        Insert: {
+          bushels: number
+          buyer?: string | null
+          created_at?: string
+          crop: Database["public"]["Enums"]["crop"]
+          crop_year: number
+          entry_date?: string
+          farm_id: string
+          id?: string
+          price: number
+          storage_location_id?: string | null
+        }
+        Update: {
+          bushels?: number
+          buyer?: string | null
+          created_at?: string
+          crop?: Database["public"]["Enums"]["crop"]
+          crop_year?: number
+          entry_date?: string
+          farm_id?: string
+          id?: string
+          price?: number
+          storage_location_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_entries_farm_id_fkey"
+            columns: ["farm_id"]
+            isOneToOne: false
+            referencedRelation: "farms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_entries_storage_location_id_fkey"
+            columns: ["storage_location_id"]
+            isOneToOne: false
+            referencedRelation: "storage_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      storage_locations: {
+        Row: {
+          capacity_bu: number | null
+          created_at: string
+          farm_id: string
+          id: string
+          kind: string
+          name: string
+          storage_cost_cents_per_bu_month: number | null
+        }
+        Insert: {
+          capacity_bu?: number | null
+          created_at?: string
+          farm_id: string
+          id?: string
+          kind?: string
+          name: string
+          storage_cost_cents_per_bu_month?: number | null
+        }
+        Update: {
+          capacity_bu?: number | null
+          created_at?: string
+          farm_id?: string
+          id?: string
+          kind?: string
+          name?: string
+          storage_cost_cents_per_bu_month?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storage_locations_farm_id_fkey"
+            columns: ["farm_id"]
+            isOneToOne: false
+            referencedRelation: "farms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       telemetry_annotation: {
         Row: {
