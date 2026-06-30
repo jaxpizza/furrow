@@ -17,11 +17,20 @@ const ECON_TTL_MS = 12 * 60 * 60 * 1000; // USDA reports don't change intraday
 export async function refreshEcon(force = false): Promise<number> {
   try {
     if (!force) {
-      const [last, cached] = await Promise.all([
+      const [last, cached, calendar] = await Promise.all([
         econLastFetched(),
         readLatestEconBundles(),
+        readReportCalendar(),
       ]);
-      if (!bucketStale(last, supplyComplete(cached), ECON_TTL_MS)) return 0;
+      // On a report-release day the completeness gate is still satisfied by the
+      // PRIOR vintage of the report, so on its own the new numbers could lag up
+      // to the full 12h TTL. Treat supply as "expecting" until today's scheduled
+      // report actually lands — that flips the bucket to the 30-min retry cadence
+      // so the release ingests within ~30 min instead of hours.
+      const complete =
+        supplyComplete(cached) &&
+        !awaitingTodaysReport(calendar, cached, new Date());
+      if (!bucketStale(last, complete, ECON_TTL_MS)) return 0;
     }
     const bundles = await econProvider.getBundles();
     let n = 0;
@@ -55,6 +64,48 @@ export async function getEconSnapshot(force = false): Promise<EconSnapshot> {
   };
 }
 
+/** Latest release timestamp we hold per econ report type, from ingested bundles. */
+function latestReleasedByType(bundles: EconBundle[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const b of bundles) {
+    if (!b.releasedAt) continue;
+    const t = Date.parse(b.releasedAt);
+    if (!Number.isFinite(t)) continue;
+    const prev = m.get(b.reportType);
+    if (prev == null || t > prev) m.set(b.reportType, t);
+  }
+  return m;
+}
+
+/** A calendar event is resolved once we hold data released on/after its date. */
+function reportReleased(e: ReportCalendarEntry, released: Map<string, number>): boolean {
+  const latest = released.get(e.reportType);
+  return latest != null && latest >= Date.parse(e.releaseDate + "T00:00:00Z");
+}
+
+/**
+ * True when a USDA report is scheduled for TODAY but its data hasn't landed yet —
+ * so the supply bucket should retry on the short (~30-min) cadence to catch the
+ * release fast instead of waiting out the full 12h TTL. Shares the same
+ * release-detection used to resolve watch-items: the bucket is "expecting"
+ * exactly between a report's scheduled date and its data arriving.
+ */
+export function awaitingTodaysReport(
+  calendar: ReportCalendarEntry[],
+  bundles: EconBundle[],
+  now: Date,
+): boolean {
+  const todayIso = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  )
+    .toISOString()
+    .slice(0, 10);
+  const released = latestReleasedByType(bundles);
+  return calendar.some(
+    (e) => e.releaseDate === todayIso && !reportReleased(e, released),
+  );
+}
+
 /**
  * Upcoming releases, soonest first — the seeded dated reports plus the recurring
  * weekly Export Sales (next Thursday, computed not stored). Drives the UI
@@ -82,24 +133,11 @@ export function upcomingReports(
   const dayUntil = (iso: string) =>
     Math.round((Date.parse(iso + "T00:00:00Z") - todayMs) / 86_400_000);
 
-  // Latest release date we actually hold per report type, from the ingested data.
-  const releasedAtByType = new Map<string, number>();
-  for (const b of bundles) {
-    if (!b.releasedAt) continue;
-    const t = Date.parse(b.releasedAt);
-    if (!Number.isFinite(t)) continue;
-    const prev = releasedAtByType.get(b.reportType);
-    if (prev == null || t > prev) releasedAtByType.set(b.reportType, t);
-  }
   // A calendar event is resolved once we hold data released on/after its date.
-  const isReleased = (e: ReportCalendarEntry) => {
-    const latest = releasedAtByType.get(e.reportType);
-    return latest != null && latest >= Date.parse(e.releaseDate + "T00:00:00Z");
-  };
-
+  const released = latestReleasedByType(bundles);
   const dated: UpcomingReport[] = calendar
     .map((e) => ({ ...e, daysUntil: dayUntil(e.releaseDate) }))
-    .filter((e) => e.daysUntil >= 0 && !isReleased(e));
+    .filter((e) => e.daysUntil >= 0 && !reportReleased(e, released));
 
   // recurring: next Thursday (export sales release day)
   const thu = new Date(todayMs);
