@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { tagUntaggedNews } from "@/lib/news/tagging";
 import { getMarketOutlook } from "@/lib/outlook/synthesis";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Crop } from "@/lib/types/database";
@@ -56,7 +57,16 @@ async function handle(req: Request): Promise<Response> {
     }
   }
 
-  return NextResponse.json({ ok: true, ranAt: now.toISOString(), warmed: Boolean(farmId), results });
+  // getMarketOutlook already refreshed the news bucket; pre-tag any new articles
+  // in the background so the News tab serves stored tags (no model call on load).
+  let tagged = 0;
+  try {
+    tagged = await tagUntaggedNews();
+  } catch (e) {
+    results.newsTags = `error: ${(e as Error).message}`;
+  }
+
+  return NextResponse.json({ ok: true, ranAt: now.toISOString(), warmed: Boolean(farmId), tagged, results });
 }
 
 export const GET = handle;

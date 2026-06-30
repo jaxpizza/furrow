@@ -1,29 +1,46 @@
 import type { Metadata } from "next";
-import { Newspaper } from "lucide-react";
 
-import { ComingSoon } from "@/components/common/coming-soon";
 import { PageHeader } from "@/components/common/page-header";
+import { EventsTracker } from "@/components/news/events-tracker";
+import { NewsFeed } from "@/components/news/news-feed";
+import { getEventsTimeline } from "@/lib/news/events";
+import { getTaggedNews } from "@/lib/news/tagging";
+import { newsLastFetched } from "@/lib/outlook/cache";
 
-export const metadata: Metadata = { title: "News" };
+export const metadata: Metadata = { title: "News & Events" };
+export const dynamic = "force-dynamic";
 
-export default function NewsPage() {
+export default async function NewsPage() {
+  const [articles, fetchedAt] = await Promise.all([getTaggedNews(40), newsLastFetched()]);
+  const events = await getEventsTimeline(articles);
+
+  const sources = new Set(articles.map((a) => a.source)).size;
+
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
-        title="News"
-        subtitle="Market-moving headlines, filtered for relevance."
+        title="News & Events"
+        subtitle="Every article the engine reads, tagged by market impact — plus the USDA report calendar, from countdown to result."
       />
-      <ComingSoon
-        icon={Newspaper}
-        title="Curated market news"
-        tagline="USDA reports, weather, and ag-market headlines distilled to what actually moves corn and soybean prices — with an AI read on the likely market impact."
-        willShow={[
-          "WASDE, export sales, and crop-progress releases",
-          "Headlines tagged by likely price impact",
-          "Weather events relevant to the eastern Corn Belt",
-          "An AI summary of why each item matters to your farm",
-        ]}
-      />
+
+      <div className="space-y-4">
+        <NewsFeed articles={articles} />
+        <EventsTracker upcoming={events.upcoming} released={events.released} />
+
+        <p className="text-text-tertiary px-1 text-center text-[11px]">
+          {articles.length} articles from {sources} sources · corpus refreshed {ago(fetchedAt)}. Real ag-news
+          and the live USDA calendar — nothing fabricated.
+        </p>
+      </div>
     </div>
   );
+}
+
+function ago(ts: number | null): string {
+  if (!ts) return "—";
+  const mins = Math.round((Date.now() - ts) / 60_000);
+  if (mins < 60) return `${Math.max(1, mins)}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
 }

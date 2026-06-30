@@ -153,3 +153,31 @@ export function upcomingReports(
 
   return dated.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, limit);
 }
+
+/**
+ * The flip side of {@link upcomingReports}: dated reports whose data has already
+ * LANDED, most-recent first. Same release-detection that resolves watch-items —
+ * a calendar event counts as released once we hold a bundle dated on/after it.
+ * Drives the "released → here's the result" half of the farmer-facing timeline.
+ */
+export function releasedReports(
+  calendar: ReportCalendarEntry[],
+  now: Date,
+  bundles: EconBundle[] = [],
+  limit = 8,
+): UpcomingReport[] {
+  const todayMs = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const dayUntil = (iso: string) =>
+    Math.round((Date.parse(iso + "T00:00:00Z") - todayMs) / 86_400_000);
+
+  const released = latestReleasedByType(bundles);
+  return calendar
+    .map((e) => ({ ...e, daysUntil: dayUntil(e.releaseDate) }))
+    .filter((e) => e.daysUntil <= 0 && reportReleased(e, released))
+    .sort((a, b) => b.daysUntil - a.daysUntil) // closest to today first
+    .slice(0, limit);
+}

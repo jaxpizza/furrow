@@ -742,6 +742,41 @@ export type Database = {
         }
         Relationships: []
       }
+      news_article_tags: {
+        Row: {
+          corn_sentiment: string | null
+          link: string
+          model: string | null
+          soy_sentiment: string | null
+          tagged_at: string
+          takeaway: string | null
+        }
+        Insert: {
+          corn_sentiment?: string | null
+          link: string
+          model?: string | null
+          soy_sentiment?: string | null
+          tagged_at?: string
+          takeaway?: string | null
+        }
+        Update: {
+          corn_sentiment?: string | null
+          link?: string
+          model?: string | null
+          soy_sentiment?: string | null
+          tagged_at?: string
+          takeaway?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "news_article_tags_link_fkey"
+            columns: ["link"]
+            isOneToOne: true
+            referencedRelation: "news_items_cache"
+            referencedColumns: ["link"]
+          },
+        ]
+      }
       news_items_cache: {
         Row: {
           crop_tags: Json
