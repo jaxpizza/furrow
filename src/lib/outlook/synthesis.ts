@@ -187,7 +187,7 @@ OUTPUT:
 - factors: 2–5 items — the DRIVERS only. Each carries a direction (up/down/neutral), a short plain-English claim, and the source_id that backs it. Reserve these for what materially leads the read under the seasonal frame (rules 11–12).
 - dominant_tension: the named axis of disagreement (rule 13): force_up, force_down, leans (up/down/balanced), why.
 - watched_context: exactly one entry per bucket — supply, demand, money_flow, macro, technicals, conditions (rule 12): bucket, state (one line), lean, emphasis (high/medium/low), is_driver.
-- watch_items: 1–3 short, concrete things to watch next (an upcoming USDA report named in the corpus, a weather window, an export-sales update) — only if grounded in a corpus item.`;
+- watch_items: 1–3 short, concrete things to watch NEXT — still-ahead events only (an upcoming USDA report named in the "UPCOMING USDA REPORTS" corpus section, a weather window, an export-sales update), grounded in a corpus item. A report stays in that upcoming section only until its data releases; once its numbers are in the supply data it is resolved — do not list it as something to watch, reflect its actual result in the factors instead.`;
 
 const TOOL: Anthropic.Tool = {
   name: "record_market_read",
