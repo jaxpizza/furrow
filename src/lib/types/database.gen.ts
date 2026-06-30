@@ -766,18 +766,113 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          is_admin: boolean
         }
         Insert: {
           created_at?: string
           full_name?: string | null
           id: string
+          is_admin?: boolean
         }
         Update: {
           created_at?: string
           full_name?: string | null
           id?: string
+          is_admin?: boolean
         }
         Relationships: []
+      }
+      outlook_telemetry: {
+        Row: {
+          corpus_hash: string
+          corpus_text: string | null
+          created_at: string
+          crop: Database["public"]["Enums"]["crop"]
+          failed_sources: Json | null
+          gaps: Json | null
+          generated_at: string
+          id: string
+          input_snapshot: Json
+          latency_ms: number | null
+          model: string
+          output: Json
+          reasoning: Json
+          sample_data: boolean
+          signal: string
+          trigger: string
+        }
+        Insert: {
+          corpus_hash: string
+          corpus_text?: string | null
+          created_at?: string
+          crop: Database["public"]["Enums"]["crop"]
+          failed_sources?: Json | null
+          gaps?: Json | null
+          generated_at: string
+          id?: string
+          input_snapshot: Json
+          latency_ms?: number | null
+          model: string
+          output: Json
+          reasoning: Json
+          sample_data?: boolean
+          signal: string
+          trigger: string
+        }
+        Update: {
+          corpus_hash?: string
+          corpus_text?: string | null
+          created_at?: string
+          crop?: Database["public"]["Enums"]["crop"]
+          failed_sources?: Json | null
+          gaps?: Json | null
+          generated_at?: string
+          id?: string
+          input_snapshot?: Json
+          latency_ms?: number | null
+          model?: string
+          output?: Json
+          reasoning?: Json
+          sample_data?: boolean
+          signal?: string
+          trigger?: string
+        }
+        Relationships: []
+      }
+      telemetry_annotation: {
+        Row: {
+          annotated_by: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          rating: string
+          telemetry_id: string
+        }
+        Insert: {
+          annotated_by?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          rating: string
+          telemetry_id: string
+        }
+        Update: {
+          annotated_by?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          rating?: string
+          telemetry_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telemetry_annotation_telemetry_id_fkey"
+            columns: ["telemetry_id"]
+            isOneToOne: false
+            referencedRelation: "outlook_telemetry"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       report_calendar: {
         Row: {

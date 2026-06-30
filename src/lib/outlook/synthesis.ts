@@ -34,6 +34,12 @@ import {
 } from "./seasonal";
 import { getTechnicalsSnapshot } from "./technicals-ingest";
 import type { TechnicalsBundle } from "./technicals-types";
+import {
+  buildReasoning,
+  writeTelemetry,
+  type TelemetryInput,
+  type TelemetryTrigger,
+} from "./telemetry";
 import { DEMAND_LABEL, type DemandBundle, type DemandFrame } from "./demand-types";
 import { getEconSnapshot, type UpcomingReport } from "./econ-ingest";
 import { REPORT_LABEL, type EconBundle, type EconFrame } from "./econ-types";
@@ -270,6 +276,7 @@ type Corpus = {
   freshness: OutlookV2["freshness"];
   macroContext: MacroContext;
   seasonalContext: SeasonalContext;
+  telemetryInput: TelemetryInput; // structured "what the engine saw" for telemetry
   hash: string;
   sampleData: boolean;
 };
@@ -549,6 +556,110 @@ async function assembleCorpus(
     .sort()
     .at(-1);
 
+  // ── Telemetry input snapshot — structured "what the engine saw" ────────────
+  const gapMap = {
+    conditions: conditionGaps(reports),
+    supply: supplyGaps(supply),
+    demand: demandGaps(crop, demand, now.getTime()),
+    macro: macroGaps(macro),
+  };
+  const failedSources: string[] = [];
+  for (const [bucket, present] of [
+    ["conditions", reports.length > 0],
+    ["supply", supply.length > 0],
+    ["demand", demand.length > 0],
+    ["money flow", cot.length > 0],
+    ["macro", macro.length > 0],
+    ["technicals", !!tech],
+    ["news", news.length > 0],
+  ] as const) {
+    if (!present) failedSources.push(`${bucket} (whole bucket absent)`);
+  }
+  for (const [bucket, gaps] of Object.entries(gapMap))
+    for (const g of gaps) failedSources.push(`${bucket}: ${g}`);
+
+  const telemetryInput: TelemetryInput = {
+    seasonal: {
+      line: seasonalContext.line,
+      season: seasonalContext.season,
+      emphasis: seasonalContext.emphasis,
+    },
+    buckets: {
+      supply: {
+        present: supply.length > 0,
+        freshness: supply.length ? "current" : "absent",
+        itemCount: supply.length,
+        items: supply.map((b) => ({
+          reportType: b.reportType,
+          marketingYear: b.marketingYear,
+          releasedAt: b.releasedAt,
+          frames: b.frames,
+        })),
+      },
+      demand: {
+        present: demand.length > 0,
+        freshness: demand.length
+          ? exportState(demand, now.getTime()).state
+          : "absent",
+        itemCount: demand.length,
+        items: demand.map((b) => ({
+          dataType: b.dataType,
+          period: b.period,
+          fetchedAt: b.fetchedAt,
+          frames: b.frames,
+        })),
+      },
+      moneyFlow: {
+        present: cot.length > 0,
+        freshness: cot.length ? "current" : "absent",
+        itemCount: cot.length,
+        items: cot,
+      },
+      macro: {
+        present: macro.length > 0,
+        freshness: macro.length ? "current" : "absent",
+        itemCount: macro.length,
+        items: macro,
+      },
+      technicals: {
+        present: !!tech,
+        freshness: tech ? (tech.basedOnSample ? "sample" : "live") : "absent",
+        itemCount: tech ? 1 : 0,
+        items: tech ? [tech] : [],
+      },
+      conditions: {
+        present: reports.length > 0,
+        freshness: reports.length ? "current" : "absent",
+        itemCount: reports.length,
+        items: reports.map((b) => ({
+          reportType: b.reportType,
+          geography: b.geography,
+          period: b.period,
+          points: b.points,
+        })),
+      },
+      news: {
+        present: news.length > 0,
+        freshness: newsThrough ? `through ${newsThrough.slice(0, 10)}` : "absent",
+        itemCount: news.length,
+        items: news.map((n) => ({
+          source: n.source,
+          publishedAt: n.publishedAt,
+          title: n.title,
+          link: n.link,
+        })),
+      },
+      price: {
+        present: latest != null,
+        freshness: sampleData ? "sample" : "live",
+        itemCount: latest != null ? 1 : 0,
+        items: [{ latest, week1m: w, month1m: m, trend: dir, cash: cash.cashPrice }],
+      },
+    },
+    gaps: gapMap,
+    failedSources,
+  };
+
   return {
     contextText: lines.join("\n"),
     sources,
@@ -560,6 +671,7 @@ async function assembleCorpus(
     },
     macroContext,
     seasonalContext,
+    telemetryInput,
     hash: hashCorpus(crop, reports, news, dir, supply, demand, cot, macro, tech, sw.line),
     sampleData,
   };
@@ -813,7 +925,16 @@ export async function getMarketOutlook(
     return serveLastGood(latest, corpus);
   }
 
+  // why are we (re)generating? — drives telemetry's `trigger`
+  const trigger: TelemetryTrigger = !latest
+    ? "initial"
+    : latest.corpus_hash !== corpus.hash
+      ? "new-corpus"
+      : "max-age";
+
+  const t0 = Date.now();
   const generated = await generate(crop, corpus, now);
+  const latencyMs = Date.now() - t0;
   if (!generated) {
     // generation failed — serve the last good read rather than nothing
     return serveLastGood(latest, corpus);
@@ -827,6 +948,26 @@ export async function getMarketOutlook(
     generated.generatedAt,
   );
   memCache.set(memKey, { outlook: generated, ts: Date.now() });
+
+  // Durable telemetry record (admin-only, never deleted by cache logic). Logs IN
+  // ADDITION to the cache; failures here never affect the served read.
+  void writeTelemetry({
+    crop,
+    generatedAt: generated.generatedAt,
+    signal: generated.signal,
+    trigger,
+    corpusHash: corpus.hash,
+    model: generated.model,
+    latencyMs,
+    sampleData: corpus.sampleData,
+    inputSnapshot: corpus.telemetryInput,
+    corpusText: corpus.contextText,
+    output: generated,
+    reasoning: buildReasoning(generated),
+    gaps: corpus.telemetryInput.gaps,
+    failedSources: corpus.telemetryInput.failedSources,
+  });
+
   return generated;
 }
 
