@@ -3,9 +3,9 @@
  * in ./database.gen.ts (regenerated with `npm run db:types`); this file is the
  * stable surface the app imports, so regeneration can't break import sites.
  */
-import type { Database } from "./database.gen";
+import type { Database, Json } from "./database.gen";
 
-export type { Database };
+export type { Database, Json };
 
 // Enum aliases (derived from the schema so they can't drift from SQL)
 export type Tenure = Database["public"]["Enums"]["tenure"];
