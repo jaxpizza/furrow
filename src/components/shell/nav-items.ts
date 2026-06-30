@@ -25,6 +25,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Terminal", href: "/terminal", icon: Activity },
   { label: "Alerts", href: "/alerts", icon: Bell },
   { label: "Weather", href: "/weather", icon: CloudSun },
-  { label: "Inputs", href: "/inputs", icon: Sprout, placeholder: true },
+  { label: "Inputs", href: "/inputs", icon: Sprout },
   { label: "News", href: "/news", icon: Newspaper, placeholder: true },
 ];

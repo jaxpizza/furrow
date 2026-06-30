@@ -180,6 +180,44 @@ export type Database = {
         }
         Relationships: []
       }
+      crop_positions: {
+        Row: {
+          avg_sold_price: number | null
+          bushels_sold: number | null
+          crop: Database["public"]["Enums"]["crop"]
+          farm_id: string
+          id: string
+          total_production_bu: number | null
+          updated_at: string
+        }
+        Insert: {
+          avg_sold_price?: number | null
+          bushels_sold?: number | null
+          crop: Database["public"]["Enums"]["crop"]
+          farm_id: string
+          id?: string
+          total_production_bu?: number | null
+          updated_at?: string
+        }
+        Update: {
+          avg_sold_price?: number | null
+          bushels_sold?: number | null
+          crop?: Database["public"]["Enums"]["crop"]
+          farm_id?: string
+          id?: string
+          total_production_bu?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crop_positions_farm_id_fkey"
+            columns: ["farm_id"]
+            isOneToOne: false
+            referencedRelation: "farms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       elevator_basis: {
         Row: {
           basis: number | null
@@ -418,6 +456,68 @@ export type Database = {
           },
         ]
       }
+      input_cost_items: {
+        Row: {
+          chemicals: number | null
+          crop: Database["public"]["Enums"]["crop"]
+          crop_insurance: number | null
+          drying_storage: number | null
+          farm_id: string
+          fertilizer: number | null
+          fuel_oil: number | null
+          id: string
+          interest: number | null
+          labor: number | null
+          land: number | null
+          machinery: number | null
+          other: number | null
+          seed: number | null
+          updated_at: string
+        }
+        Insert: {
+          chemicals?: number | null
+          crop: Database["public"]["Enums"]["crop"]
+          crop_insurance?: number | null
+          drying_storage?: number | null
+          farm_id: string
+          fertilizer?: number | null
+          fuel_oil?: number | null
+          id?: string
+          interest?: number | null
+          labor?: number | null
+          land?: number | null
+          machinery?: number | null
+          other?: number | null
+          seed?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chemicals?: number | null
+          crop?: Database["public"]["Enums"]["crop"]
+          crop_insurance?: number | null
+          drying_storage?: number | null
+          farm_id?: string
+          fertilizer?: number | null
+          fuel_oil?: number | null
+          id?: string
+          interest?: number | null
+          labor?: number | null
+          land?: number | null
+          machinery?: number | null
+          other?: number | null
+          seed?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "input_cost_items_farm_id_fkey"
+            columns: ["farm_id"]
+            isOneToOne: false
+            referencedRelation: "farms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       input_purchases: {
         Row: {
           category: string | null
@@ -633,6 +733,63 @@ export type Database = {
         }
         Relationships: []
       }
+      outlook_telemetry: {
+        Row: {
+          corpus_hash: string
+          corpus_text: string | null
+          created_at: string
+          crop: Database["public"]["Enums"]["crop"]
+          failed_sources: Json | null
+          gaps: Json | null
+          generated_at: string
+          id: string
+          input_snapshot: Json
+          latency_ms: number | null
+          model: string
+          output: Json
+          reasoning: Json
+          sample_data: boolean
+          signal: string
+          trigger: string
+        }
+        Insert: {
+          corpus_hash: string
+          corpus_text?: string | null
+          created_at?: string
+          crop: Database["public"]["Enums"]["crop"]
+          failed_sources?: Json | null
+          gaps?: Json | null
+          generated_at: string
+          id?: string
+          input_snapshot: Json
+          latency_ms?: number | null
+          model: string
+          output: Json
+          reasoning: Json
+          sample_data?: boolean
+          signal: string
+          trigger: string
+        }
+        Update: {
+          corpus_hash?: string
+          corpus_text?: string | null
+          created_at?: string
+          crop?: Database["public"]["Enums"]["crop"]
+          failed_sources?: Json | null
+          gaps?: Json | null
+          generated_at?: string
+          id?: string
+          input_snapshot?: Json
+          latency_ms?: number | null
+          model?: string
+          output?: Json
+          reasoning?: Json
+          sample_data?: boolean
+          signal?: string
+          trigger?: string
+        }
+        Relationships: []
+      }
       plantings: {
         Row: {
           created_at: string
@@ -782,60 +939,24 @@ export type Database = {
         }
         Relationships: []
       }
-      outlook_telemetry: {
+      report_calendar: {
         Row: {
-          corpus_hash: string
-          corpus_text: string | null
-          created_at: string
-          crop: Database["public"]["Enums"]["crop"]
-          failed_sources: Json | null
-          gaps: Json | null
-          generated_at: string
+          description: string
           id: string
-          input_snapshot: Json
-          latency_ms: number | null
-          model: string
-          output: Json
-          reasoning: Json
-          sample_data: boolean
-          signal: string
-          trigger: string
+          release_date: string
+          report_type: string
         }
         Insert: {
-          corpus_hash: string
-          corpus_text?: string | null
-          created_at?: string
-          crop: Database["public"]["Enums"]["crop"]
-          failed_sources?: Json | null
-          gaps?: Json | null
-          generated_at: string
+          description: string
           id?: string
-          input_snapshot: Json
-          latency_ms?: number | null
-          model: string
-          output: Json
-          reasoning: Json
-          sample_data?: boolean
-          signal: string
-          trigger: string
+          release_date: string
+          report_type: string
         }
         Update: {
-          corpus_hash?: string
-          corpus_text?: string | null
-          created_at?: string
-          crop?: Database["public"]["Enums"]["crop"]
-          failed_sources?: Json | null
-          gaps?: Json | null
-          generated_at?: string
+          description?: string
           id?: string
-          input_snapshot?: Json
-          latency_ms?: number | null
-          model?: string
-          output?: Json
-          reasoning?: Json
-          sample_data?: boolean
-          signal?: string
-          trigger?: string
+          release_date?: string
+          report_type?: string
         }
         Relationships: []
       }
@@ -866,6 +987,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "telemetry_annotation_annotated_by_fkey"
+            columns: ["annotated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "telemetry_annotation_telemetry_id_fkey"
             columns: ["telemetry_id"]
             isOneToOne: false
@@ -873,27 +1001,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      report_calendar: {
-        Row: {
-          description: string
-          id: string
-          release_date: string
-          report_type: string
-        }
-        Insert: {
-          description: string
-          id?: string
-          release_date: string
-          report_type: string
-        }
-        Update: {
-          description?: string
-          id?: string
-          release_date?: string
-          report_type?: string
-        }
-        Relationships: []
       }
       usda_demand_cache: {
         Row: {
@@ -1059,6 +1166,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      is_admin: { Args: never; Returns: boolean }
       is_farm_member: { Args: { f_id: string }; Returns: boolean }
       is_field_member: { Args: { fl_id: string }; Returns: boolean }
     }
