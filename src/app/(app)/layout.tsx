@@ -35,6 +35,7 @@ export default async function AppLayout({
           activeFarmId={activeFarmId}
           email={user.email ?? ""}
           fullName={profile?.full_name ?? null}
+          unreadAlerts={unreadAlerts}
         />
         <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
       </div>
