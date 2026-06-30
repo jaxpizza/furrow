@@ -10,6 +10,8 @@ import { NewsFeed } from "@/components/dashboard/news-feed";
 import { PricePulseCard } from "@/components/dashboard/price-pulse-card";
 import { WeatherSnapshot } from "@/components/dashboard/weather-snapshot";
 import { HoldingsSummary, type CropHolding } from "@/components/dashboard/holdings-summary";
+import { PositionVsMarketCompact } from "@/components/fusion/position-vs-market";
+import { fusePosition, type PositionFusion } from "@/lib/fusion/position-fusion";
 import { currentCropYear, type Position } from "@/lib/inputs/ledger";
 import { getHoldings } from "@/lib/inputs/queries";
 import { freshnessLabel } from "@/components/terminal/lib";
@@ -167,6 +169,21 @@ export default async function DashboardPage() {
     };
   });
 
+  // Compact personal-position fusion — his numbers tied to the read, per crop.
+  // The light per-farmer layer (design §5) over the shared cached read.
+  const fusions: PositionFusion[] = pulses.map((p) =>
+    fusePosition({
+      crop: p.crop,
+      cropLabel: p.label,
+      position: holdings[p.crop] ?? emptyPos,
+      breakeven: p.breakeven.effective,
+      cashPrice: p.cashPrice,
+      profitTargetPrice: p.breakeven.profitTargetPrice,
+      signal: p.read?.signal ?? null,
+      tension: p.read?.dominantTension ?? null,
+    }),
+  );
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
@@ -177,6 +194,9 @@ export default async function DashboardPage() {
       <div className="space-y-6">
         {/* ── HOLDINGS ─────────────────────────────────────────────── */}
         <HoldingsSummary holdings={cropHoldings} />
+
+        {/* ── YOUR POSITION VS THE MARKET ──────────────────────────── */}
+        <PositionVsMarketCompact items={fusions} />
 
         {/* ── PRICE PULSE ──────────────────────────────────────────── */}
         <section className="space-y-2">

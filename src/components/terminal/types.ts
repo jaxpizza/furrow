@@ -1,3 +1,4 @@
+import type { PositionFusion } from "@/lib/fusion/position-fusion";
 import type { CashPrice } from "@/lib/markets/types";
 import type { CotBundle } from "@/lib/outlook/cot-types";
 import type { DemandBundle } from "@/lib/outlook/demand-types";
@@ -24,6 +25,8 @@ export type TerminalData = {
   outlook: OutlookV2 | null;
   cash: CashPrice | null;
   breakeven: { effective: number | null; profitTargetPrice: number | null };
+  /** Personal-position fusion (design §5) — null when no ledger data. */
+  fusion: PositionFusion | null;
   pricePoints: ChartPoint[];
   priceSample: boolean;
   nextMover: NextMover | null;

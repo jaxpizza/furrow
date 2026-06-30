@@ -2,6 +2,7 @@ import { CalendarClock } from "lucide-react";
 
 import { Explainer } from "@/components/common/explainer";
 import { SignalBadge } from "@/components/common/signal-badge";
+import { PositionVsMarket } from "@/components/fusion/position-vs-market";
 import { BreakevenVsCash } from "@/components/markets/breakeven-vs-cash";
 
 import { SignalRow } from "./signal-row";
@@ -108,23 +109,27 @@ export function Glance({ data }: { data: TerminalData }) {
         </Explainer>
       </section>
 
-      {/* ── YOUR POSITION ────────────────────────────────────────── */}
-      <section className="space-y-2">
-        <h2 className="text-text-tertiary px-1 text-[11px] font-medium tracking-wide uppercase">
-          Your position
-        </h2>
-        {cashPrice != null ? (
-          <BreakevenVsCash
-            breakeven={breakeven.effective}
-            profitTargetPrice={breakeven.profitTargetPrice}
-            cashPrice={cashPrice}
-          />
-        ) : (
-          <div className="border-border text-text-secondary rounded-md border border-dashed px-4 py-3 text-sm">
-            Cash price unavailable right now.
-          </div>
-        )}
-      </section>
+      {/* ── YOUR POSITION VS THE MARKET ──────────────────────────── */}
+      {data.fusion ? (
+        <PositionVsMarket fusion={data.fusion} />
+      ) : (
+        <section className="space-y-2">
+          <h2 className="text-text-tertiary px-1 text-[11px] font-medium tracking-wide uppercase">
+            Your position
+          </h2>
+          {cashPrice != null ? (
+            <BreakevenVsCash
+              breakeven={breakeven.effective}
+              profitTargetPrice={breakeven.profitTargetPrice}
+              cashPrice={cashPrice}
+            />
+          ) : (
+            <div className="border-border text-text-secondary rounded-md border border-dashed px-4 py-3 text-sm">
+              Cash price unavailable right now.
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ── THE SIX SIGNALS ──────────────────────────────────────── */}
       <section className="space-y-2">

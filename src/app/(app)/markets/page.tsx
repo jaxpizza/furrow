@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { PageHeader } from "@/components/common/page-header";
+import { PositionVsMarket } from "@/components/fusion/position-vs-market";
 import { BreakevenCard } from "@/components/markets/breakeven-card";
 import { CashPriceCard } from "@/components/markets/cash-price-card";
 import { ChartCard } from "@/components/markets/chart-card";
@@ -13,6 +14,9 @@ import { evaluateFarm } from "@/lib/alerts/evaluate";
 import { getBreakevenTarget } from "@/lib/alerts/queries";
 import { ACTIVE_FARM_COOKIE } from "@/lib/constants";
 import { getSessionContext } from "@/lib/farm";
+import { fusePosition } from "@/lib/fusion/position-fusion";
+import { currentCropYear } from "@/lib/inputs/ledger";
+import { getHoldings } from "@/lib/inputs/queries";
 import { cashProvider } from "@/lib/markets/manual-basis";
 import { getMarketOutlook } from "@/lib/outlook/synthesis";
 import {
@@ -61,16 +65,18 @@ export default async function MarketsPage({
   // Everything below consumes the two provider seams, never the raw API. Use
   // allSettled so one provider throwing (e.g. a DB hiccup) can't 500 the page
   // before the graceful per-card fallbacks (incl. the outlook-null state) render.
-  const [historyR, cashR, outlookR, targetR] = await Promise.allSettled([
+  const [historyR, cashR, outlookR, targetR, holdingsR] = await Promise.allSettled([
     getFuturesHistory(symbol, now),
     cashProvider.getCashPrice(crop, activeFarm.id),
     getMarketOutlook(crop, activeFarm.id, now),
     getBreakevenTarget(activeFarm.id, crop),
+    getHoldings(activeFarm.id, currentCropYear(now)),
   ]);
   const history = historyR.status === "fulfilled" ? historyR.value : sampleHistory(symbol, now);
   const cash = cashR.status === "fulfilled" ? cashR.value : fallbackCash(crop, symbol, now);
   const outlook = outlookR.status === "fulfilled" ? outlookR.value : null;
   const target = targetR.status === "fulfilled" ? targetR.value : null;
+  const holdings = holdingsR.status === "fulfilled" ? holdingsR.value[crop] : null;
 
   const effectiveBE = target?.effectiveBreakeven ?? null;
   const profitTargetPrice =
@@ -79,6 +85,22 @@ export default async function MarketsPage({
     target.profitTargetPerBushel > 0
       ? Math.round((effectiveBE + target.profitTargetPerBushel) * 100) / 100
       : null;
+
+  // Personal-position fusion — the light per-farmer layer (design §5). It reads
+  // the SHARED market read's signal/tension + his real numbers; it never touches
+  // the cached read. Pure/deterministic, so it can only state facts + relevance.
+  const fusion = holdings
+    ? fusePosition({
+        crop,
+        cropLabel: CROP_LABEL[crop],
+        position: holdings,
+        breakeven: effectiveBE,
+        cashPrice: cash.cashPrice,
+        profitTargetPrice,
+        signal: outlook?.signal ?? null,
+        tension: outlook?.dominantTension ?? null,
+      })
+    : null;
   // The futures quote (cash card / strip) and the chart history have separate
   // sources on the free tier: corn quote is live (15-min delayed), corn history
   // is premium → sample. Badge each honestly.
@@ -160,11 +182,16 @@ export default async function MarketsPage({
           sampleData={chartSample}
         />
 
-        {/* Market outlook — full width, stacked directly below the chart */}
+        {/* Your position vs the market — his numbers + exposure beside the read */}
+        {fusion && <PositionVsMarket fusion={fusion} />}
+
+        {/* Market outlook — full width, stacked directly below the chart. The
+            personal-relevance line folds his exposure into the read (Part 2). */}
         <OutlookCard
           outlook={outlook}
           apiKeyMissing={!process.env.ANTHROPIC_API_KEY}
           nowMs={now.getTime()}
+          personalRelevance={fusion?.relevanceLine ?? null}
         />
       </div>
     </div>

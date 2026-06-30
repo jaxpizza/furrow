@@ -7,6 +7,7 @@ import {
   Info,
   Minus,
   Sparkles,
+  UserCheck,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -211,6 +212,7 @@ export function OutlookCard({
   outlook,
   apiKeyMissing = false,
   nowMs,
+  personalRelevance = null,
 }: {
   outlook: OutlookV2 | null;
   /** true only when ANTHROPIC_API_KEY is genuinely unset — so we don't tell the
@@ -219,6 +221,9 @@ export function OutlookCard({
   /** server render time (ms) — used to flag a stale last-good read without an
    *  impure Date.now() in render. */
   nowMs: number;
+  /** One factual relevance line from the personal-fusion layer (design §5) —
+   *  folds his exposure into the read. Pure fact/relevance, never a directive. */
+  personalRelevance?: string | null;
 }) {
   if (!outlook) {
     return (
@@ -302,6 +307,18 @@ export function OutlookCard({
           </div>
         )}
       </div>
+
+      {/* Personal-relevance layer — his exposure folded into the read as a fact,
+          never a directive (design §5). Only shown when he has a position. */}
+      {personalRelevance && (
+        <div className="mt-3 flex items-start gap-2 rounded-md border border-[var(--accent)]/25 bg-[var(--accent)]/[0.06] px-3 py-2">
+          <UserCheck className="mt-0.5 size-3.5 shrink-0 text-[var(--accent)]" />
+          <p className="text-text-secondary text-[11px] leading-relaxed">
+            <span className="text-[var(--accent)] font-medium">For your position: </span>
+            {personalRelevance}
+          </p>
+        </div>
+      )}
 
       {/* Drivers — factors flow across the width instead of stacking tall */}
       <div className="border-border/60 mt-4 border-t pt-4">

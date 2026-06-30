@@ -9,9 +9,12 @@ import { freshnessLabel } from "@/components/terminal/lib";
 import { getBreakevenTarget } from "@/lib/alerts/queries";
 import { ACTIVE_FARM_COOKIE } from "@/lib/constants";
 import { getSessionContext } from "@/lib/farm";
+import { fusePosition } from "@/lib/fusion/position-fusion";
+import { currentCropYear } from "@/lib/inputs/ledger";
+import { getHoldings } from "@/lib/inputs/queries";
 import { cashProvider } from "@/lib/markets/manual-basis";
 import { getFuturesHistory } from "@/lib/markets/service";
-import { CROP_TO_SYMBOL } from "@/lib/markets/symbols";
+import { CROP_LABEL, CROP_TO_SYMBOL } from "@/lib/markets/symbols";
 import { getCotSnapshot } from "@/lib/outlook/cot-ingest";
 import { getDemandSnapshot } from "@/lib/outlook/demand-ingest";
 import { getEconSnapshot } from "@/lib/outlook/econ-ingest";
@@ -47,7 +50,7 @@ export default async function TerminalPage({
   // single hiccup degrades one panel rather than 500-ing the page. The outlook
   // call is the SAME getMarketOutlook the markets page uses — so terminal-driven
   // reads still flow through synthesis and log to telemetry automatically.
-  const [outlookR, cashR, targetR, historyR, econR, demandR, cotR, macroR, techR, reportsR] =
+  const [outlookR, cashR, targetR, historyR, econR, demandR, cotR, macroR, techR, reportsR, holdingsR] =
     await Promise.allSettled([
       getMarketOutlook(crop, activeFarm.id, now),
       cashProvider.getCashPrice(crop, activeFarm.id),
@@ -59,6 +62,7 @@ export default async function TerminalPage({
       getMacroSnapshot(),
       getTechnicalsSnapshot(now),
       readReportBundles(),
+      getHoldings(activeFarm.id, currentCropYear(now)),
     ]);
 
   const val = <T,>(r: PromiseSettledResult<T>, fallback: T): T =>
@@ -74,6 +78,28 @@ export default async function TerminalPage({
   const macro = val(macroR, { bundles: [], fetchedAt: null });
   const tech = val(techR, { bundles: [], basedOnSample: false });
   const reports = val(reportsR, []);
+  const holdings = val(holdingsR, null);
+
+  const effectiveBE = target?.effectiveBreakeven ?? null;
+  const profitTargetPrice =
+    effectiveBE != null && target?.profitTargetPerBushel != null && target.profitTargetPerBushel > 0
+      ? Math.round((effectiveBE + target.profitTargetPerBushel) * 100) / 100
+      : null;
+
+  // Personal-position fusion — the light per-farmer layer on top of the shared
+  // cached read (design §5). Pure/deterministic: facts + relevance only.
+  const fusion = holdings
+    ? fusePosition({
+        crop,
+        cropLabel: CROP_LABEL[crop],
+        position: holdings[crop],
+        breakeven: effectiveBE,
+        cashPrice: cash?.cashPrice ?? cash?.futuresRef?.price ?? null,
+        profitTargetPrice,
+        signal: outlook?.signal ?? null,
+        tension: outlook?.dominantTension ?? null,
+      })
+    : null;
 
   // Per-crop slices for the deep-mode buckets.
   const data = {
@@ -82,15 +108,8 @@ export default async function TerminalPage({
     apiKeyMissing: !process.env.ANTHROPIC_API_KEY,
     outlook,
     cash,
-    breakeven: {
-      effective: target?.effectiveBreakeven ?? null,
-      profitTargetPrice:
-        target?.effectiveBreakeven != null &&
-        target.profitTargetPerBushel != null &&
-        target.profitTargetPerBushel > 0
-          ? Math.round((target.effectiveBreakeven + target.profitTargetPerBushel) * 100) / 100
-          : null,
-    },
+    breakeven: { effective: effectiveBE, profitTargetPrice },
+    fusion,
     pricePoints: history?.points ?? [],
     priceSample: history?.source === "sample",
     nextMover: econ.upcoming[0] ?? null,
