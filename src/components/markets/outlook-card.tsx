@@ -41,7 +41,7 @@ function TensionBlock({ t }: { t: DominantTension }) {
         ? "text-[var(--neg)]"
         : "text-[var(--neutral)]";
   return (
-    <div className="border-border/60 mt-3 rounded-md border border-dashed px-3 py-2.5">
+    <div className="border-border/60 h-full rounded-md border border-dashed px-3 py-2.5">
       <div className="text-text-tertiary mb-1.5 text-[10px] font-medium tracking-wide uppercase">
         Dominant tension ·{" "}
         <span className={leanColor}>
@@ -77,7 +77,7 @@ function WatchedContextList({ items }: { items: WatchedBucket[] }) {
         ? "text-[var(--neg)]"
         : "text-[var(--neutral)]";
   return (
-    <div className="border-border/60 mt-1 border-t pt-3">
+    <div>
       <div className="text-text-tertiary mb-2 text-[10px] font-medium tracking-wide uppercase">
         All buckets considered · drivers + watched
       </div>
@@ -155,7 +155,7 @@ function MacroContextStrip({ items }: { items: MacroContextItem[] }) {
   );
 }
 
-function FactorRow({ factor }: { factor: OutlookFactorV2 }) {
+function FactorCell({ factor }: { factor: OutlookFactorV2 }) {
   const { direction, text, source } = factor;
   const Icon =
     direction === "up"
@@ -177,11 +177,11 @@ function FactorRow({ factor }: { factor: OutlookFactorV2 }) {
         : "neutral";
 
   return (
-    <li className="flex items-start gap-2.5 py-2.5">
+    <div className="border-border/60 bg-bg-elevated/20 flex items-start gap-2.5 rounded-md border p-3">
       <Icon className={cn("mt-0.5 size-4 shrink-0", color)} strokeWidth={2.5} />
       <div className="min-w-0">
         <p className="text-foreground text-sm leading-snug">{text}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className={cn("text-[10px] font-medium uppercase", color)}>
             {label}
           </span>
@@ -203,7 +203,7 @@ function FactorRow({ factor }: { factor: OutlookFactorV2 }) {
             ))}
         </div>
       </div>
-    </li>
+    </div>
   );
 }
 
@@ -222,7 +222,7 @@ export function OutlookCard({
 }) {
   if (!outlook) {
     return (
-      <Card className="flex flex-col p-5 md:col-span-1">
+      <Card className="flex flex-col p-5">
         <div className="flex items-center gap-2">
           <Sparkles className="size-4 text-[var(--accent)]" />
           <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
@@ -267,7 +267,7 @@ export function OutlookCard({
   const stale = Number.isFinite(ageMs) && ageMs > 6 * 60 * 60 * 1000;
 
   return (
-    <Card className="flex flex-col p-5 md:col-span-1">
+    <Card className="flex flex-col p-5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Sparkles className="size-4 text-[var(--accent)]" />
@@ -291,41 +291,57 @@ export function OutlookCard({
 
       {outlook.seasonalContext && <SeasonalLine ctx={outlook.seasonalContext} />}
 
-      <p className="text-text-secondary mt-4 text-sm leading-relaxed">
-        {outlook.summary}
-      </p>
+      {/* Summary + dominant tension share the width side-by-side */}
+      <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <p className="text-text-secondary text-sm leading-relaxed md:col-span-2">
+          {outlook.summary}
+        </p>
+        {outlook.dominantTension && (
+          <div>
+            <TensionBlock t={outlook.dominantTension} />
+          </div>
+        )}
+      </div>
 
-      {outlook.dominantTension && <TensionBlock t={outlook.dominantTension} />}
-
-      <ul className="divide-border/60 mt-3 divide-y border-t border-border/60">
-        {outlook.factors.map((factor, i) => (
-          <FactorRow key={i} factor={factor} />
-        ))}
-      </ul>
+      {/* Drivers — factors flow across the width instead of stacking tall */}
+      <div className="border-border/60 mt-4 border-t pt-4">
+        <div className="text-text-tertiary mb-2 flex items-center gap-1.5 text-[10px] font-medium tracking-wide uppercase">
+          <Sparkles className="size-3" />
+          Drivers · what&apos;s shaping the read
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {outlook.factors.map((factor, i) => (
+            <FactorCell key={i} factor={factor} />
+          ))}
+        </div>
+      </div>
 
       <MacroContextStrip items={outlook.macroContext ?? []} />
 
-      <WatchedContextList items={outlook.watchedContext ?? []} />
+      {/* All buckets + what to watch share the width side-by-side */}
+      <div className="border-border/60 mt-1 grid gap-x-6 gap-y-4 border-t pt-3 md:grid-cols-2">
+        <WatchedContextList items={outlook.watchedContext ?? []} />
 
-      {outlook.watchItems.length > 0 && (
-        <div className="border-border/60 mt-1 border-t pt-3">
-          <div className="text-text-tertiary mb-1.5 flex items-center gap-1.5 text-[10px] font-medium tracking-wide uppercase">
-            <Eye className="size-3" />
-            What to watch
+        {outlook.watchItems.length > 0 && (
+          <div>
+            <div className="text-text-tertiary mb-2 flex items-center gap-1.5 text-[10px] font-medium tracking-wide uppercase">
+              <Eye className="size-3" />
+              What to watch
+            </div>
+            <ul className="space-y-1">
+              {outlook.watchItems.map((w, i) => (
+                <li
+                  key={i}
+                  className="text-text-secondary flex gap-1.5 text-xs leading-snug"
+                >
+                  <span className="text-text-tertiary">·</span>
+                  {w}
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="space-y-1">
-            {outlook.watchItems.map((w, i) => (
-              <li
-                key={i}
-                className="text-text-secondary flex gap-1.5 text-xs leading-snug"
-              >
-                <span className="text-text-tertiary">·</span>
-                {w}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+        )}
+      </div>
 
       <Explainer label="What's a condition rating?">
         The USDA % good/excellent is a weekly snapshot of how crops are rated

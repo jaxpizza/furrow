@@ -113,49 +113,54 @@ export default async function MarketsPage({
         action={<CropToggle active={crop} />}
       />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <CashPriceCard
-          crop={crop}
-          cropLabel={CROP_LABEL[crop]}
-          farmId={activeFarm.id}
-          cashPrice={cash.cashPrice ?? cash.futuresRef!.price}
-          basisCents={cash.basisCents ?? 0}
-          hasBasis={cash.hasBasis}
-          elevatorName={cash.elevatorName}
-          futuresPrice={cash.futuresRef!.price}
-          contractMonth={cash.futuresRef!.contractMonth}
-          asOf={cash.futuresRef!.asOf}
-          source={futuresSource}
-          stale={cash.futuresRef!.stale}
-          delta={delta}
-          breakeven={{ effective: effectiveBE, profitTargetPrice }}
-          basisAge={basisAge(cash.basisUpdatedAt, now)}
-        />
+      <div className="space-y-4">
+        {/* Top row: cash, futures strip, break-even editor — unchanged */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <CashPriceCard
+            crop={crop}
+            cropLabel={CROP_LABEL[crop]}
+            farmId={activeFarm.id}
+            cashPrice={cash.cashPrice ?? cash.futuresRef!.price}
+            basisCents={cash.basisCents ?? 0}
+            hasBasis={cash.hasBasis}
+            elevatorName={cash.elevatorName}
+            futuresPrice={cash.futuresRef!.price}
+            contractMonth={cash.futuresRef!.contractMonth}
+            asOf={cash.futuresRef!.asOf}
+            source={futuresSource}
+            stale={cash.futuresRef!.stale}
+            delta={delta}
+            breakeven={{ effective: effectiveBE, profitTargetPrice }}
+            basisAge={basisAge(cash.basisUpdatedAt, now)}
+          />
 
-        <FuturesStrip
-          frontMonth={cash.futuresRef!.contractMonth}
-          frontPrice={cash.futuresRef!.price}
-          change={delta.change}
-          pct={delta.pct}
-          direction={delta.direction}
-          nextMonths={nextMonths}
-          source={futuresSource}
-          stale={cash.futuresRef!.stale}
-        />
+          <FuturesStrip
+            frontMonth={cash.futuresRef!.contractMonth}
+            frontPrice={cash.futuresRef!.price}
+            change={delta.change}
+            pct={delta.pct}
+            direction={delta.direction}
+            nextMonths={nextMonths}
+            source={futuresSource}
+            stale={cash.futuresRef!.stale}
+          />
 
-        <BreakevenCard
-          farmId={activeFarm.id}
-          crop={crop}
-          cropLabel={CROP_LABEL[crop]}
-          target={target}
-        />
+          <BreakevenCard
+            farmId={activeFarm.id}
+            crop={crop}
+            cropLabel={CROP_LABEL[crop]}
+            target={target}
+          />
+        </div>
 
+        {/* Futures chart — full width, its own row */}
         <ChartCard
           cropLabel={CROP_LABEL[crop]}
           points={history.points}
           sampleData={chartSample}
         />
 
+        {/* Market outlook — full width, stacked directly below the chart */}
         <OutlookCard
           outlook={outlook}
           apiKeyMissing={!process.env.ANTHROPIC_API_KEY}
