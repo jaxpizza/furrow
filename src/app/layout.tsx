@@ -1,8 +1,19 @@
 import type { Metadata } from "next";
+import { Fraunces } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 
 import "./globals.css";
+
+// Warm editorial serif for the marketing display type ("grounded precision").
+// Only used on the landing page; the app keeps Geist.
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display",
+  axes: ["opsz", "SOFT"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
 
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -24,7 +35,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}
+      className={`dark ${GeistSans.variable} ${GeistMono.variable} ${fraunces.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
