@@ -15,6 +15,7 @@ import { EXPENSE_CATEGORIES } from "@/lib/inputs/ledger";
 import type { Crop } from "@/lib/types/database";
 
 export type QuickAddLocation = { id: string; name: string; kind: string };
+export type QuickAddField = { id: string; name: string };
 type Kind = "expense" | "sale" | "harvest";
 
 /**
@@ -27,10 +28,12 @@ export function QuickAdd({
   farmId,
   cropYear,
   locations,
+  fields,
 }: {
   farmId: string;
   cropYear: number;
   locations: QuickAddLocation[];
+  fields: QuickAddField[];
 }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<Kind | null>(null);
@@ -90,7 +93,7 @@ export function QuickAdd({
               ) : kind === "sale" ? (
                 <SaleForm farmId={farmId} cropYear={cropYear} locations={locations} onDone={close} />
               ) : (
-                <HarvestForm farmId={farmId} cropYear={cropYear} locations={locations} onDone={close} />
+                <HarvestForm farmId={farmId} cropYear={cropYear} locations={locations} fields={fields} onDone={close} />
               )}
             </motion.div>
           </div>,
@@ -278,11 +281,13 @@ function HarvestForm({
   farmId,
   cropYear,
   locations,
+  fields,
   onDone,
 }: {
   farmId: string;
   cropYear: number;
   locations: QuickAddLocation[];
+  fields: QuickAddField[];
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -290,6 +295,8 @@ function HarvestForm({
   const [crop, setCrop] = useState<Crop>("corn");
   const [bushels, setBushels] = useState("");
   const [loc, setLoc] = useState<string>(locations[0]?.id ?? "none");
+  // Field is OPTIONAL — defaults to "none" so the simple flow stays a few taps.
+  const [field, setField] = useState<string>("none");
   const [date, setDate] = useState(todayIso());
 
   function submit() {
@@ -298,6 +305,7 @@ function HarvestForm({
       const r = await addHarvest({
         farmId, crop, cropYear, bushels: toNum(bushels) ?? 0,
         storageLocationId: loc === "none" ? null : loc, moisture: null, notes: "", entryDate: date,
+        fieldId: field === "none" ? null : field,
       });
       if (!r.ok) {
         toast.error(r.error ?? "Could not save.");
@@ -316,8 +324,42 @@ function HarvestForm({
         <MoneyField id="qa-harv-bu" label="Bushels" unit="bu" value={bushels} onChange={setBushels} placeholder="2400" step="1" />
       </div>
       <LocationSelect locations={locations} value={loc} onChange={setLoc} />
+      {fields.length > 0 && <FieldSelect fields={fields} value={field} onChange={setField} />}
       <TextField id="qa-harv-date" label="Date" type="date" value={date} onChange={setDate} />
       <SubmitButton pending={pending} onClick={submit} label="Log harvest" />
+    </div>
+  );
+}
+
+/** Optional per-field tag for a harvest — defaults to "No field" so farm-level
+ *  logging stays a few taps; picking one builds that field's yield history. */
+function FieldSelect({
+  fields,
+  value,
+  onChange,
+}: {
+  fields: QuickAddField[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-text-tertiary">
+        Field <span className="font-normal">· optional</span>
+      </Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">No field</SelectItem>
+          {fields.map((f) => (
+            <SelectItem key={f.id} value={f.id}>
+              {f.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

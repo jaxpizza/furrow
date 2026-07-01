@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import type { Polygon } from "geojson";
 import {
   Check,
+  ClipboardList,
   Loader2,
   Map,
   PanelLeft,
@@ -24,41 +25,50 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FIELD_COLUMNS, type MapField } from "@/lib/fields";
+import { FIELD_COLUMNS, type FieldHarvest, type FieldPlanting, type MapField } from "@/lib/fields";
 import { formatAcres, polygonToEWKT } from "@/lib/geo";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import type { Crop } from "@/lib/types/database";
 
 import { FieldForm, type FieldFormValues } from "./field-form";
 import { FieldMap, type FieldMapHandle } from "./field-map";
+import { FieldRecords } from "./field-records";
 import { TenureBadge } from "./tenure-badge";
 
 type Panel =
   | { kind: "list" }
   | { kind: "create"; geom: Polygon; acres: number }
   | { kind: "edit"; field: MapField }
-  | { kind: "edit-geom"; field: MapField; geom: Polygon; acres: number };
+  | { kind: "edit-geom"; field: MapField; geom: Polygon; acres: number }
+  | { kind: "records"; field: MapField };
 
 export function FieldsWorkspace({
   token,
   farmId,
   farmName,
   initialFields,
+  initialPlantings,
+  fieldHarvests,
 }: {
   token: string;
   farmId: string;
   farmName: string;
   initialFields: MapField[];
+  initialPlantings: FieldPlanting[];
+  fieldHarvests: FieldHarvest[];
 }) {
   const supabase = useMemo(() => createClient(), []);
   const mapRef = useRef<FieldMapHandle>(null);
 
   const [fields, setFields] = useState<MapField[]>(initialFields);
+  const [plantings, setPlantings] = useState<FieldPlanting[]>(initialPlantings);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>({ kind: "list" });
   const [isDrawing, setIsDrawing] = useState(false);
   const [liveAcres, setLiveAcres] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
+  const [recordPending, setRecordPending] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MapField | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -205,6 +215,44 @@ export function FieldsWorkspace({
     mapRef.current?.flyToField(field);
   }
 
+  // ── per-field records (plantings; harvest yield comes from tagged harvests) ──
+  function openRecords(field: MapField) {
+    setSelectedId(field.id);
+    setPanel({ kind: "records", field });
+    mapRef.current?.flyToField(field);
+  }
+  async function reloadPlantings() {
+    const ids = fields.map((f) => f.id);
+    if (ids.length === 0) return setPlantings([]);
+    const { data } = await supabase
+      .from("plantings")
+      .select("id, field_id, crop, crop_year, planted_date")
+      .in("field_id", ids);
+    setPlantings(
+      (data ?? []).map((p) => ({
+        id: p.id, fieldId: p.field_id, crop: p.crop, cropYear: p.crop_year, plantedDate: p.planted_date,
+      })),
+    );
+  }
+  async function recordPlanting(fieldId: string, crop: Crop, cropYear: number) {
+    setRecordPending(true);
+    const { error } = await supabase
+      .from("plantings")
+      .upsert({ field_id: fieldId, crop, crop_year: cropYear }, { onConflict: "field_id,crop_year" });
+    setRecordPending(false);
+    if (error) return toast.error(error.message);
+    await reloadPlantings();
+    toast.success(`Planting saved · ${cropYear}`);
+  }
+  async function removePlanting(fieldId: string, cropYear: number) {
+    setRecordPending(true);
+    const { error } = await supabase.from("plantings").delete().eq("field_id", fieldId).eq("crop_year", cropYear);
+    setRecordPending(false);
+    if (error) return toast.error(error.message);
+    await reloadPlantings();
+    toast.success("Planting removed");
+  }
+
   const busy = isDrawing || panel.kind !== "list";
 
   return (
@@ -340,6 +388,19 @@ export function FieldsWorkspace({
             </PanelShell>
           )}
 
+          {panel.kind === "records" && (
+            <PanelShell title="Field record" onClose={() => setPanel({ kind: "list" })}>
+              <FieldRecords
+                field={panel.field}
+                plantings={plantings}
+                harvests={fieldHarvests}
+                onRecordPlanting={(crop, year) => recordPlanting(panel.field.id, crop, year)}
+                onDeletePlanting={(year) => removePlanting(panel.field.id, year)}
+                pending={recordPending}
+              />
+            </PanelShell>
+          )}
+
           {panel.kind === "list" &&
             (isDrawing ? (
               <DrawingBanner acres={liveAcres} onCancel={cancelDraw} />
@@ -353,6 +414,7 @@ export function FieldsWorkspace({
                     field={f}
                     selected={f.id === selectedId}
                     onSelect={() => selectFromList(f)}
+                    onRecords={() => openRecords(f)}
                     onEdit={() => openEdit(f)}
                     onDelete={() => setDeleteTarget(f)}
                   />
@@ -504,12 +566,14 @@ function FieldRow({
   field,
   selected,
   onSelect,
+  onRecords,
   onEdit,
   onDelete,
 }: {
   field: MapField;
   selected: boolean;
   onSelect: () => void;
+  onRecords: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -548,6 +612,13 @@ function FieldRow({
           selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
         )}
       >
+        <button
+          onClick={onRecords}
+          className="text-text-tertiary hover:text-[var(--accent)] rounded p-1.5 transition-colors"
+          aria-label="Field records"
+        >
+          <ClipboardList className="size-3.5" />
+        </button>
         <button
           onClick={onEdit}
           className="text-text-tertiary hover:text-foreground rounded p-1.5 transition-colors"

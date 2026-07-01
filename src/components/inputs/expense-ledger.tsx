@@ -43,28 +43,18 @@ export function ExpenseLedger({
 
   return (
     <Card className="p-5">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">Cost ledger</span>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">Your costs</span>
+          <p className="text-text-tertiary mt-0.5 text-[11px] leading-relaxed">
+            Every expense you log feeds the break-even above.
+          </p>
+        </div>
         <AddExpenseDialog farmId={farmId} cropYear={cropYear} />
       </div>
 
-      {/* per-crop break-even */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {CROPS.map((crop) => (
-          <CropBreakeven
-            key={crop}
-            farmId={farmId}
-            crop={crop}
-            cropLabel={CROP_LABEL[crop]}
-            cropYear={cropYear}
-            total={expenseTotals(expenses.filter((e) => e.crop === crop)).total}
-            settings={settingsByCrop[crop]}
-          />
-        ))}
-      </div>
-
       {/* unified, crop-tagged expense list */}
-      <div className="border-border/70 mt-4 flex items-center justify-between border-t pt-3">
+      <div className="border-border/70 mt-3 flex items-center justify-between border-t pt-3">
         <span className="text-text-tertiary text-[10px] font-medium tracking-wide uppercase">All expenses</span>
         <CropFilter value={filter} onChange={setFilter} />
       </div>
@@ -97,10 +87,32 @@ export function ExpenseLedger({
         </ul>
       )}
 
+      {/* the yield side of the break-even — acres × bu/acre */}
+      <div className="border-border/70 mt-4 border-t pt-4">
+        <span className="text-text-tertiary text-[10px] font-medium tracking-wide uppercase">
+          Your expected yield (acres × bu/acre)
+        </span>
+        <p className="text-text-tertiary mt-0.5 mb-3 text-[11px] leading-relaxed">
+          Acres and expected yield turn your total cost into a cost per bushel — the break-even above.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {CROPS.map((crop) => (
+            <CropBreakeven
+              key={crop}
+              farmId={farmId}
+              crop={crop}
+              cropLabel={CROP_LABEL[crop]}
+              cropYear={cropYear}
+              total={expenseTotals(expenses.filter((e) => e.crop === crop)).total}
+              settings={settingsByCrop[crop]}
+            />
+          ))}
+        </div>
+      </div>
+
       <Explainer>
         Log every purchase as a line, picking the crop — buy $100 of corn seed, then $10 more, and that&apos;s
-        two entries that sum to $110 automatically. Each crop&apos;s break-even is its summed cost ÷ (acres ×
-        expected yield). One unified log; corn and soybean numbers stay distinct.
+        two entries that sum to $110 automatically. One unified log; corn and soybean numbers stay distinct.
       </Explainer>
     </Card>
   );

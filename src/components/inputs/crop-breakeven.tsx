@@ -44,14 +44,8 @@ export function CropBreakeven({
 
   return (
     <div className="border-border/70 bg-bg-elevated/30 rounded-lg border p-4">
-      <div className="flex items-baseline justify-between">
-        <span className="text-text-secondary text-xs font-medium uppercase tracking-wide">{cropLabel}</span>
-        <span className="tnum text-2xl font-semibold tracking-tight">
-          {be.effective != null ? `$${be.effective.toFixed(2)}` : "—"}
-          {be.effective != null && <span className="text-text-tertiary ml-0.5 text-sm font-normal">/bu</span>}
-        </span>
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="text-text-secondary text-xs font-medium tracking-wide uppercase">{cropLabel}</div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
         <MoneyField id={`be-acres-${crop}`} label="Acres" unit="ac" value={acres} onChange={setAcres} placeholder="640" step="1" />
         <MoneyField id={`be-yield-${crop}`} label="Yield" unit="bu/ac" value={yield_} onChange={setYield} placeholder="205" step="1" />
       </div>

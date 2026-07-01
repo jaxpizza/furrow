@@ -500,6 +500,7 @@ export type Database = {
           crop_year: number
           entry_date: string
           farm_id: string
+          field_id: string | null
           id: string
           moisture: number | null
           notes: string | null
@@ -512,6 +513,7 @@ export type Database = {
           crop_year: number
           entry_date?: string
           farm_id: string
+          field_id?: string | null
           id?: string
           moisture?: number | null
           notes?: string | null
@@ -524,6 +526,7 @@ export type Database = {
           crop_year?: number
           entry_date?: string
           farm_id?: string
+          field_id?: string | null
           id?: string
           moisture?: number | null
           notes?: string | null
@@ -535,6 +538,13 @@ export type Database = {
             columns: ["farm_id"]
             isOneToOne: false
             referencedRelation: "farms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harvest_entries_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "fields"
             referencedColumns: ["id"]
           },
           {

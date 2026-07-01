@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ImpersonationBanner } from "@/components/admin/impersonation-banner";
-import { QuickAdd, type QuickAddLocation } from "@/components/quick-add/quick-add";
+import { QuickAdd, type QuickAddField, type QuickAddLocation } from "@/components/quick-add/quick-add";
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import { TopBar } from "@/components/shell/top-bar";
 import { getUnreadAlertCount } from "@/lib/alerts/queries";
@@ -48,9 +48,10 @@ export default async function AppLayout({
   const cookieFarm = cookieStore.get(ACTIVE_FARM_COOKIE)?.value;
   const activeFarmId = farms.find((f) => f.id === cookieFarm)?.id ?? farms[0].id;
 
-  const [unreadAlerts, locations] = await Promise.all([
+  const [unreadAlerts, locations, fields] = await Promise.all([
     getUnreadAlertCount(activeFarmId),
     loadLocations(activeFarmId),
+    loadFields(activeFarmId),
   ]);
 
   return (
@@ -71,7 +72,7 @@ export default async function AppLayout({
       </div>
 
       {/* App-wide fast path: log an expense/sale/harvest in a few taps. */}
-      <QuickAdd farmId={activeFarmId} cropYear={currentCropYear()} locations={locations} />
+      <QuickAdd farmId={activeFarmId} cropYear={currentCropYear()} locations={locations} fields={fields} />
     </div>
   );
 }
@@ -86,6 +87,21 @@ async function loadLocations(farmId: string): Promise<QuickAddLocation[]> {
       .eq("farm_id", farmId)
       .order("created_at");
     return (data ?? []).map((l) => ({ id: l.id, name: l.name, kind: l.kind }));
+  } catch {
+    return [];
+  }
+}
+
+/** Fields for the quick-add harvest's OPTIONAL per-field tag (RLS-scoped). */
+async function loadFields(farmId: string): Promise<QuickAddField[]> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("fields")
+      .select("id, name")
+      .eq("farm_id", farmId)
+      .order("created_at");
+    return (data ?? []).map((f) => ({ id: f.id, name: f.name }));
   } catch {
     return [];
   }

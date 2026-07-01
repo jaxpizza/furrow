@@ -29,11 +29,13 @@ export function HarvestLedger({
   cropYear,
   harvests,
   locations,
+  fields,
 }: {
   farmId: string;
   cropYear: number;
   harvests: HarvestEntry[];
   locations: StorageLocation[];
+  fields: { id: string; name: string }[];
 }) {
   const locName = (id: string | null) => locations.find((l) => l.id === id)?.name ?? "—";
 
@@ -52,7 +54,7 @@ export function HarvestLedger({
             );
           })}
         </div>
-        <AddHarvestDialog farmId={farmId} cropYear={cropYear} locations={locations} />
+        <AddHarvestDialog farmId={farmId} cropYear={cropYear} locations={locations} fields={fields} />
       </div>
 
       {harvests.length === 0 ? (
@@ -88,16 +90,21 @@ function AddHarvestDialog({
   farmId,
   cropYear,
   locations,
+  fields,
 }: {
   farmId: string;
   cropYear: number;
   locations: StorageLocation[];
+  fields: { id: string; name: string }[];
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [crop, setCrop] = useState<Crop>("corn");
   const [bushels, setBushels] = useState("");
   const [loc, setLoc] = useState<string>(locations[0]?.id ?? "none");
+  // Field is OPTIONAL — defaults to "none" (farm-level). Picking one builds that
+  // field's per-year yield history on the Fields tab.
+  const [field, setField] = useState<string>("none");
   const [moisture, setMoisture] = useState("");
   const [notes, setNotes] = useState("");
   const [entryDate, setEntryDate] = useState(todayIso());
@@ -114,6 +121,7 @@ function AddHarvestDialog({
       moisture: toNum(moisture),
       notes,
       entryDate,
+      fieldId: field === "none" ? null : field,
     });
     setPending(false);
     if (!r.ok) return toast.error(r.error ?? "Could not add.");
@@ -122,6 +130,7 @@ function AddHarvestDialog({
     setBushels("");
     setMoisture("");
     setNotes("");
+    setField("none");
   }
 
   return (
@@ -156,6 +165,26 @@ function AddHarvestDialog({
               </SelectContent>
             </Select>
           </div>
+          {fields.length > 0 && (
+            <div className="space-y-1">
+              <Label>
+                Field <span className="text-text-tertiary font-normal">· optional — builds this field&apos;s yield history</span>
+              </Label>
+              <Select value={field} onValueChange={setField}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No field</SelectItem>
+                  {fields.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <MoneyField id="ah-moist" label="Moisture" hint="optional" unit="%" value={moisture} onChange={setMoisture} placeholder="15.5" />
             <TextField id="ah-date" label="Date" type="date" value={entryDate} onChange={setEntryDate} />

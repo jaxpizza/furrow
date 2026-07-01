@@ -113,7 +113,17 @@ export function PriceTerminalChart({
       setHover({ value: d.value, time: new Date((param.time as number) * 1000).toISOString().slice(0, 10) });
     });
 
+    // Keep the most-recent price pinned to the RIGHT edge at every width. autoSize
+    // resizes the canvas but does NOT re-fit the visible range, so on resize the
+    // latest bar drifts off the edge — re-fit after each resize (in rAF so it runs
+    // after autoSize has applied the new width).
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(() => chartRef.current?.timeScale().fitContent());
+    });
+    ro.observe(containerRef.current);
+
     return () => {
+      ro.disconnect();
       chart.remove();
       chartRef.current = null;
       priceRef.current = null;

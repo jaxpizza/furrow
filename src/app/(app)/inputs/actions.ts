@@ -122,8 +122,13 @@ export async function addHarvest(input: {
   entryDate: string;
   moisture: number | null;
   notes: string;
+  /** OPTIONAL — the field this harvest came from (per-field yield history). Left
+   *  unset for farm-level logging (the simple, few-taps flow). */
+  fieldId?: string | null;
 }): Promise<Result> {
   const supabase = await createClient();
+  // Only send field_id when a field was actually chosen, so farm-level logging
+  // never depends on the field_id column (migration 0018) being present.
   const { error } = await supabase.from("harvest_entries").insert({
     farm_id: input.farmId,
     crop: input.crop,
@@ -133,6 +138,7 @@ export async function addHarvest(input: {
     entry_date: input.entryDate,
     moisture: input.moisture,
     notes: input.notes || null,
+    ...(input.fieldId ? { field_id: input.fieldId } : {}),
   });
   return done(error);
 }

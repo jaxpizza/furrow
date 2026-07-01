@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { PageHeader } from "@/components/common/page-header";
+import { BreakevenHeadline, type BreakevenView } from "@/components/inputs/breakeven-headline";
 import { ExpenseLedger } from "@/components/inputs/expense-ledger";
 import { HarvestLedger } from "@/components/inputs/harvest-ledger";
 import { PositionSummary } from "@/components/inputs/position-summary";
@@ -14,6 +15,8 @@ import {
   computePosition,
   CROPS,
   currentCropYear,
+  expenseTotals,
+  ledgerBreakeven,
   type ExpenseEntry,
   type HarvestEntry,
   type SaleEntry,
@@ -41,12 +44,13 @@ export default async function InputsPage() {
   const supabase = await createClient();
   // allSettled so an unexpected error on one query degrades to an empty ledger
   // rather than crashing the whole page.
-  const [expR, harvR, salR, locsR, setR] = await Promise.allSettled([
+  const [expR, harvR, salR, locsR, setR, fldR] = await Promise.allSettled([
     supabase.from("expense_entries").select("*").eq("farm_id", farmId).eq("crop_year", cropYear).order("entry_date", { ascending: false }),
     supabase.from("harvest_entries").select("*").eq("farm_id", farmId).eq("crop_year", cropYear).order("entry_date", { ascending: false }),
     supabase.from("sale_entries").select("*").eq("farm_id", farmId).eq("crop_year", cropYear).order("entry_date", { ascending: false }),
     supabase.from("storage_locations").select("*").eq("farm_id", farmId).order("created_at"),
     supabase.from("crop_year_settings").select("crop, acres, expected_yield").eq("farm_id", farmId).eq("crop_year", cropYear),
+    supabase.from("fields").select("id, name").eq("farm_id", farmId).order("created_at"),
   ]);
   const settled = <T,>(r: PromiseSettledResult<{ data: T | null }>): { data: T | null } =>
     r.status === "fulfilled" ? r.value : { data: null };
@@ -55,6 +59,8 @@ export default async function InputsPage() {
   const sal = settled(salR);
   const locs = settled(locsR);
   const set = settled(setR);
+  const fld = settled(fldR);
+  const fields = (fld.data ?? []).map((f) => ({ id: f.id, name: f.name }));
 
   const expenses: ExpenseEntry[] = (exp.data ?? []).map((e) => ({
     id: e.id, crop: e.crop, category: e.category, description: e.description,
@@ -87,23 +93,40 @@ export default async function InputsPage() {
     ]),
   );
 
+  // The break-even ANSWER per crop — the SAME computation the CropBreakeven card,
+  // dashboard, markets, and alerts use (total logged cost ÷ acres ÷ expected yield).
+  const breakevenItems: BreakevenView[] = CROPS.map((c) => {
+    const total = expenseTotals(expenses.filter((e) => e.crop === c)).total;
+    const s = settingsByCrop[c];
+    return {
+      crop: c,
+      label: CROP_LABEL[c],
+      breakeven: ledgerBreakeven(total, s?.acres ?? null, s?.expectedYield ?? null).effective,
+    };
+  });
+
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Inputs"
-        subtitle={`Log expenses, harvest, and sales as they happen — one flow, crop per entry. ${cropYear} crop year; the app tallies the rest.`}
+        subtitle="Your costs and expected yield set your break-even — the price you need to profit. Log them here; the app does the math and feeds it everywhere."
       />
 
       <div className="space-y-4">
+        {/* 1 · THE ANSWER — your break-even + what it's for */}
+        <BreakevenHeadline items={breakevenItems} />
+
+        {/* 2 · THE INPUTS that produce it — your costs + expected yield */}
+        <ExpenseLedger farmId={farmId} cropYear={cropYear} expenses={expenses} settingsByCrop={settingsByCrop} />
+
+        {/* 3 · Where you stand + the grain ledgers */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {CROPS.map((c) => (
             <PositionSummary key={c} cropLabel={CROP_LABEL[c]} position={positionByCrop[c]} />
           ))}
         </div>
-
-        <ExpenseLedger farmId={farmId} cropYear={cropYear} expenses={expenses} settingsByCrop={settingsByCrop} />
         <StorageManager farmId={farmId} locations={locations} harvests={harvests} sales={sales} />
-        <HarvestLedger farmId={farmId} cropYear={cropYear} harvests={harvests} locations={locations} />
+        <HarvestLedger farmId={farmId} cropYear={cropYear} harvests={harvests} locations={locations} fields={fields} />
         <SaleLedger farmId={farmId} cropYear={cropYear} sales={sales} locations={locations} />
       </div>
     </div>
