@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CloudSun, LineChart, Sprout, Wallet } from "lucide-react";
 
@@ -205,28 +206,32 @@ const FEATURES = [
     kicker: "Honest market read",
     title: "A straight read, not a hot take.",
     body: "Every day, a plain-language read on corn and soybeans: what moved, why, and which way the competing forces lean. Sourced to real USDA data and the news the desk actually watches — never a made-up price target.",
-    shot: "Dashboard — “The market read” (Corn & Soy signal + one plain-language sentence, with “see full read”)",
+    src: "/screenshots/dashboard-1.png",
+    shot: "Furrow dashboard — the plain-language market read for corn and soybeans",
   },
   {
     icon: Wallet,
     kicker: "Your break-even, always",
     title: "The moment today's price is profitable.",
     body: "Log your costs once. Furrow turns them into your break-even per bushel and shows — on every screen — whether today's cash bid clears it. Whole-farm costs get split across crops by acreage, so the number stays honest.",
-    shot: "Inputs — “Your break-even $4.20/bu” headline + the spending-by-category summary",
+    src: "/screenshots/inputs-1.png",
+    shot: "Furrow inputs — your per-crop break-even and spending by category",
   },
   {
     icon: Sprout,
     kicker: "Your whole position",
     title: "What you've grown, sold, and still have riding.",
     body: "Bushels on hand valued at today's cash, percent sold, and what's still exposed to the market — your operation's position in one glance, tied straight to your break-even.",
-    shot: "Dashboard — holdings value ($526,995 · bushels on hand · % sold · above/below break-even)",
+    src: "/screenshots/dashboard-2.png",
+    shot: "Furrow dashboard — holdings value, bushels on hand, percent sold, and position vs. break-even",
   },
   {
     icon: CloudSun,
     kicker: "Per-field weather that matters",
     title: "The weather questions you actually ask.",
     body: "Fieldwork windows, rainfall vs. normal, growing degree days, and your field's frost dates — per field from its own coordinates, not a generic forecast for the nearest city.",
-    shot: "Weather — rainfall vs. normal + growing degree days + the 7-day fieldwork window",
+    src: "/screenshots/weather-1.png",
+    shot: "Furrow weather — rainfall vs. normal, growing degree days, and the fieldwork window",
   },
 ];
 
@@ -272,14 +277,14 @@ function FeatureRow({ feature, flip }: { feature: (typeof FEATURES)[number]; fli
         </div>
       </Reveal>
       <Reveal className={flip ? "lg:order-1" : ""} delay={0.08} y={30}>
-        <Shot label={feature.shot} />
+        <Shot src={feature.src} label={feature.shot} />
       </Reveal>
     </div>
   );
 }
 
 /** A premium, clearly-labeled placeholder for a real app screenshot. */
-function Shot({ label }: { label: string }) {
+function Shot({ src, label }: { src?: string; label: string }) {
   return (
     <figure className="overflow-hidden rounded-xl border border-border/80 bg-[var(--bg-surface)]/70 shadow-2xl shadow-black/40">
       <div className="flex items-center gap-2 border-b border-border/60 bg-[var(--bg-base)]/50 px-3.5 py-2.5">
@@ -292,23 +297,35 @@ function Shot({ label }: { label: string }) {
           furrowapp.xyz
         </span>
       </div>
-      <div className="relative flex aspect-[16/10] items-center justify-center p-6">
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-40"
-          style={{
-            background:
-              "repeating-linear-gradient(to bottom, transparent 0 20px, color-mix(in oklab, var(--accent) 4%, transparent) 20px 21px)",
-          }}
-        />
-        <div className="relative max-w-xs text-center">
-          <div className="text-text-tertiary mx-auto mb-3 inline-flex size-10 items-center justify-center rounded-lg border border-dashed border-border">
-            <LineChart className="size-4" />
-          </div>
-          <div className="text-text-tertiary font-mono text-[10px] tracking-[0.16em] uppercase">Screenshot</div>
-          <p className="text-text-secondary mt-1.5 text-xs leading-relaxed">{label}</p>
+      {src ? (
+        <div className="relative aspect-video">
+          <Image
+            src={src}
+            alt={label}
+            fill
+            sizes="(max-width: 1024px) 92vw, 36rem"
+            className="object-cover object-top"
+          />
         </div>
-      </div>
+      ) : (
+        <div className="relative flex aspect-video items-center justify-center p-6">
+          <div
+            aria-hidden
+            className="absolute inset-0 opacity-40"
+            style={{
+              background:
+                "repeating-linear-gradient(to bottom, transparent 0 20px, color-mix(in oklab, var(--accent) 4%, transparent) 20px 21px)",
+            }}
+          />
+          <div className="relative max-w-xs text-center">
+            <div className="text-text-tertiary mx-auto mb-3 inline-flex size-10 items-center justify-center rounded-lg border border-dashed border-border">
+              <LineChart className="size-4" />
+            </div>
+            <div className="text-text-tertiary font-mono text-[10px] tracking-[0.16em] uppercase">Screenshot</div>
+            <p className="text-text-secondary mt-1.5 text-xs leading-relaxed">{label}</p>
+          </div>
+        </div>
+      )}
     </figure>
   );
 }
