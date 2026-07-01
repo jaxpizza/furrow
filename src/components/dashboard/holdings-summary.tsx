@@ -27,11 +27,12 @@ export function HoldingsSummary({ holdings }: { holdings: CropHolding[] }) {
         <div className="flex items-center gap-2.5">
           <Wallet className="text-text-tertiary size-4" />
           <span className="text-text-secondary text-sm">
-            No grain on hand yet — log your harvest in{" "}
+            No grain on hand yet — tap{" "}
+            <span className="text-foreground font-medium">+</span> to log a harvest (or use{" "}
             <Link href="/inputs" className="text-[var(--accent)] hover:underline">
               Inputs
-            </Link>{" "}
-            to see your holdings value and break-even position here.
+            </Link>
+            ) to see your holdings value and break-even position here.
           </span>
         </div>
       </Card>
@@ -96,6 +97,10 @@ export function HoldingsSummary({ holdings }: { holdings: CropHolding[] }) {
           );
         })}
       </div>
+
+      <p className="text-text-tertiary mt-3 text-[10px] leading-relaxed">
+        Informational, not financial advice. You decide.
+      </p>
     </Card>
   );
 }

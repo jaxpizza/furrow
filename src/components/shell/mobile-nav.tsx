@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 import { FarmSwitcher } from "./farm-switcher";
-import { NAV_ITEMS } from "./nav-items";
+import { PRIMARY_NAV, SECONDARY_NAV, type NavItem } from "./nav-items";
 
 /**
  * Mobile navigation — the small-screen counterpart to the desktop sidebar, which
@@ -58,6 +58,31 @@ export function MobileNav({
     router.push("/sign-in");
     router.refresh();
   }
+
+  const navLink = (item: NavItem) => {
+    const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+    const Icon = item.icon;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={() => setOpen(false)}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+          active ? "bg-accent/70 text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent/60",
+        )}
+      >
+        <Icon className={cn("size-4", active ? "text-[var(--accent)]" : "text-muted-foreground")} strokeWidth={2} />
+        {item.label}
+        {item.href === "/alerts" && unreadAlerts > 0 && (
+          <span className="tnum ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-semibold text-[#1b1403]">
+            {unreadAlerts > 99 ? "99+" : unreadAlerts}
+          </span>
+        )}
+      </Link>
+    );
+  };
 
   return (
     <>
@@ -112,35 +137,11 @@ export function MobileNav({
               </div>
 
               <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
-                {NAV_ITEMS.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setOpen(false)}
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
-                        active
-                          ? "bg-accent/70 text-foreground"
-                          : "text-muted-foreground hover:text-foreground hover:bg-accent/60",
-                      )}
-                    >
-                      <Icon
-                        className={cn("size-4", active ? "text-[var(--accent)]" : "text-muted-foreground")}
-                        strokeWidth={2}
-                      />
-                      {item.label}
-                      {item.href === "/alerts" && unreadAlerts > 0 && (
-                        <span className="tnum ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-semibold text-[#1b1403]">
-                          {unreadAlerts > 99 ? "99+" : unreadAlerts}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
+                {PRIMARY_NAV.map(navLink)}
+                <div className="text-text-tertiary mt-4 mb-1 px-3 text-[10px] font-medium tracking-wide uppercase">
+                  More
+                </div>
+                {SECONDARY_NAV.map(navLink)}
               </nav>
 
               <div className="border-border/80 border-t p-3">

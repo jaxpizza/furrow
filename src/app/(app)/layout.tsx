@@ -3,11 +3,14 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ImpersonationBanner } from "@/components/admin/impersonation-banner";
+import { QuickAdd, type QuickAddLocation } from "@/components/quick-add/quick-add";
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import { TopBar } from "@/components/shell/top-bar";
 import { getUnreadAlertCount } from "@/lib/alerts/queries";
 import { ACTIVE_FARM_COOKIE } from "@/lib/constants";
 import { getSessionContext } from "@/lib/farm";
+import { currentCropYear } from "@/lib/inputs/ledger";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function AppLayout({
   children,
@@ -45,7 +48,10 @@ export default async function AppLayout({
   const cookieFarm = cookieStore.get(ACTIVE_FARM_COOKIE)?.value;
   const activeFarmId = farms.find((f) => f.id === cookieFarm)?.id ?? farms[0].id;
 
-  const unreadAlerts = await getUnreadAlertCount(activeFarmId);
+  const [unreadAlerts, locations] = await Promise.all([
+    getUnreadAlertCount(activeFarmId),
+    loadLocations(activeFarmId),
+  ]);
 
   return (
     <div className="flex min-h-dvh w-full flex-col">
@@ -63,6 +69,24 @@ export default async function AppLayout({
           <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
         </div>
       </div>
+
+      {/* App-wide fast path: log an expense/sale/harvest in a few taps. */}
+      <QuickAdd farmId={activeFarmId} cropYear={currentCropYear()} locations={locations} />
     </div>
   );
+}
+
+/** Storage locations for the quick-add sale/harvest pickers (RLS-scoped). */
+async function loadLocations(farmId: string): Promise<QuickAddLocation[]> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("storage_locations")
+      .select("id, name, kind")
+      .eq("farm_id", farmId)
+      .order("created_at");
+    return (data ?? []).map((l) => ({ id: l.id, name: l.name, kind: l.kind }));
+  } catch {
+    return [];
+  }
 }
