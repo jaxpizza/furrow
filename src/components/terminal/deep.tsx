@@ -23,6 +23,7 @@ import {
   type BucketKey,
   type Lean,
 } from "./lib";
+import { PositionSummaryBar } from "./position-summary-bar";
 import type { NextMover, TerminalData } from "./types";
 
 const DIR_ICON = { up: ArrowUpRight, down: ArrowDownRight, neutral: Minus };
@@ -245,6 +246,9 @@ export function Deep({ data }: { data: TerminalData }) {
           profitTarget={data.breakeven.profitTargetPrice}
         />
       </Panel>
+
+      {/* ── POSITION SNAPSHOT — the hard numbers behind the chart ── */}
+      <PositionSummaryBar data={data} />
 
       {/* ── FULL READ ────────────────────────────────────────────── */}
       <FullRead data={data} />
