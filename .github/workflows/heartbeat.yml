@@ -1,0 +1,59 @@
+name: Heartbeat — refresh market data
+
+# Keeps the deployed app current on Vercel Hobby (no Vercel cron on the free tier):
+# pings /api/cron/refresh every 30 min so the engine pulls new articles, pre-tags
+# them, refreshes the data buckets, and regenerates the market read WHEN the corpus
+# changed. Quiet cycles are cheap (cache hit, no LLM call).
+#
+# Requires two repo secrets (Settings → Secrets and variables → Actions):
+#   CRON_SECRET  — must MATCH the CRON_SECRET set in Vercel's env vars
+#   APP_URL      — your Vercel production URL, e.g. https://furrow.vercel.app (no trailing slash)
+
+on:
+  schedule:
+    # Every 30 minutes (UTC). GitHub schedules are best-effort and can be delayed
+    # under load — fine for a heartbeat. Scheduled runs use the default branch.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {} # manual trigger for testing
+
+# The token needs no repo access — this job only calls an external URL.
+permissions: {}
+
+# Don't stack runs if one is slow.
+concurrency:
+  group: heartbeat
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /api/cron/refresh
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+          if [ -z "${APP_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::Missing secrets. Add APP_URL and CRON_SECRET under repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          # Strip any trailing slash so we don't build a //api URL.
+          url="${APP_URL%/}/api/cron/refresh"
+          echo "POST $url"
+          code=$(curl -sS -m 90 -o /tmp/body.txt -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "$url") || { echo "::error::Request failed — check APP_URL is your real Vercel URL and reachable."; exit 1; }
+          echo "HTTP $code"
+          echo "Response body:"
+          cat /tmp/body.txt || true
+          echo
+          case "$code" in
+            2*) echo "✓ Heartbeat OK." ;;
+            401) echo "::error::401 Unauthorized — the CRON_SECRET here does not match the one set in Vercel."; exit 1 ;;
+            503) echo "::error::503 — CRON_SECRET is not set in Vercel's env vars (the endpoint refuses in production without it)."; exit 1 ;;
+            504|502|000) echo "::warning::$code — the endpoint likely hit Vercel Hobby's 60s cap mid-regeneration. Work is best-effort and self-heals on the next ping." ;;
+            *) echo "::warning::Unexpected HTTP $code — see the response body above." ;;
+          esac

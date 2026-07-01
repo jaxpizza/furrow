@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink } from "lucide-react";
 
 import { Explainer } from "@/components/common/explainer";
 import { Card } from "@/components/ui/card";
@@ -14,9 +14,23 @@ import { SentimentTag } from "./sentiment";
 type CropFilter = "all" | Crop;
 type SentFilter = "all" | Sentiment;
 
+/** How many articles show before "Show all" expands the rest. */
+const VISIBLE_LIMIT = 5;
+
 export function NewsFeed({ articles }: { articles: TaggedArticle[] }) {
   const [crop, setCrop] = useState<CropFilter>("all");
   const [sent, setSent] = useState<SentFilter>("all");
+  const [expanded, setExpanded] = useState(false);
+
+  // Changing a filter re-collapses to the 5 most recent of the new result set.
+  const pickCrop = (v: CropFilter) => {
+    setCrop(v);
+    setExpanded(false);
+  };
+  const pickSent = (v: SentFilter) => {
+    setSent(v);
+    setExpanded(false);
+  };
 
   const shown = useMemo(() => {
     return articles.filter((a) => {
@@ -37,6 +51,10 @@ export function NewsFeed({ articles }: { articles: TaggedArticle[] }) {
 
   const taggedCount = articles.filter((a) => a.tag && (a.tag.corn || a.tag.soy)).length;
 
+  // Articles arrive newest-first (published_at DESC) — the filter preserves that
+  // order, so the first slice IS the 5 most recent of the (filtered) results.
+  const visible = expanded ? shown : shown.slice(0, VISIBLE_LIMIT);
+
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -49,7 +67,7 @@ export function NewsFeed({ articles }: { articles: TaggedArticle[] }) {
         <div className="flex flex-wrap items-center gap-2">
           <Segmented
             value={crop}
-            onChange={(v) => setCrop(v as CropFilter)}
+            onChange={(v) => pickCrop(v as CropFilter)}
             options={[
               { v: "all", label: "All crops" },
               { v: "corn", label: "Corn" },
@@ -58,7 +76,7 @@ export function NewsFeed({ articles }: { articles: TaggedArticle[] }) {
           />
           <Segmented
             value={sent}
-            onChange={(v) => setSent(v as SentFilter)}
+            onChange={(v) => pickSent(v as SentFilter)}
             options={[
               { v: "all", label: "Any read" },
               { v: "bullish", label: "Bullish" },
@@ -74,11 +92,24 @@ export function NewsFeed({ articles }: { articles: TaggedArticle[] }) {
           No articles match this filter.
         </p>
       ) : (
-        <ul className="divide-border/50 mt-3 divide-y">
-          {shown.map((a) => (
-            <ArticleRow key={a.link} a={a} />
-          ))}
-        </ul>
+        <>
+          <ul className="divide-border/50 mt-3 divide-y">
+            {visible.map((a) => (
+              <ArticleRow key={a.link} a={a} />
+            ))}
+          </ul>
+
+          {shown.length > VISIBLE_LIMIT && (
+            <button
+              type="button"
+              onClick={() => setExpanded((e) => !e)}
+              className="border-border/60 text-text-secondary hover:text-foreground mt-1 flex w-full items-center justify-center gap-1.5 border-t pt-3 text-xs font-medium transition-colors"
+            >
+              {expanded ? "Show fewer" : `Show all ${shown.length} articles`}
+              <ChevronDown className={cn("size-4 transition-transform", expanded && "rotate-180")} />
+            </button>
+          )}
+        </>
       )}
 
       <Explainer label="How the AI read works">
