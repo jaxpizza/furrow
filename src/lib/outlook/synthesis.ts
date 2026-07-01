@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
+import { after } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
 import {
@@ -969,6 +970,45 @@ export async function getMarketOutlook(
   });
 
   return generated;
+}
+
+/** How stale the cached read may be before a page load schedules a background
+ *  regen. Matches the cron cadence, so with the cron running this ~never fires. */
+const WARM_AFTER_MS = 30 * 60 * 1000;
+
+/** Crops with a background warm already in flight (this instance) — so a burst of
+ *  page loads can't kick off a burst of concurrent (expensive) regenerations. */
+const warmingInFlight = new Set<Crop>();
+
+/**
+ * Read-only, instant path for PAGES: return the latest cached read (no corpus
+ * assembly, no Claude call) so the page renders immediately. If that read is
+ * stale, schedule the (expensive) regeneration with `after()` so it runs AFTER
+ * the response is sent and the cache self-heals — the user never waits on it.
+ * getMarketOutlook (the blocking generate) stays for the cron, which is the
+ * primary warmer in production.
+ */
+export async function getCachedOutlook(
+  crop: Crop,
+  farmId: string,
+  now: Date,
+): Promise<OutlookV2 | null> {
+  const row = await readLatestOutlookV2(crop);
+  const payload = (row?.payload as OutlookV2 | undefined) ?? null;
+  const ageMs = row?.generated_at ? Date.now() - Date.parse(row.generated_at) : Infinity;
+  if (ageMs > WARM_AFTER_MS && !warmingInFlight.has(crop)) {
+    warmingInFlight.add(crop);
+    after(async () => {
+      try {
+        await getMarketOutlook(crop, farmId, now);
+      } catch {
+        // best-effort warm — the page already served the last-good read
+      } finally {
+        warmingInFlight.delete(crop);
+      }
+    });
+  }
+  return payload;
 }
 
 async function generate(

@@ -20,12 +20,15 @@ import { getDemandSnapshot } from "@/lib/outlook/demand-ingest";
 import { getEconSnapshot } from "@/lib/outlook/econ-ingest";
 import { getMacroSnapshot } from "@/lib/outlook/macro-ingest";
 import { readReportBundles } from "@/lib/outlook/cache";
-import { getMarketOutlook } from "@/lib/outlook/synthesis";
+import { getCachedOutlook } from "@/lib/outlook/synthesis";
 import { getTechnicalsSnapshot } from "@/lib/outlook/technicals-ingest";
 import type { Crop } from "@/lib/types/database";
 
 export const metadata: Metadata = { title: "Terminal" };
 export const dynamic = "force-dynamic";
+// Renders from the cached read instantly; maxDuration only covers the background
+// `after()` regen that self-heals a stale cache.
+export const maxDuration = 90;
 
 export default async function TerminalPage({
   searchParams,
@@ -52,7 +55,7 @@ export default async function TerminalPage({
   // reads still flow through synthesis and log to telemetry automatically.
   const [outlookR, cashR, targetR, historyR, econR, demandR, cotR, macroR, techR, reportsR, holdingsR] =
     await Promise.allSettled([
-      getMarketOutlook(crop, activeFarm.id, now),
+      getCachedOutlook(crop, activeFarm.id, now),
       cashProvider.getCashPrice(crop, activeFarm.id),
       getBreakevenTarget(activeFarm.id, crop),
       getFuturesHistory(symbol, now),

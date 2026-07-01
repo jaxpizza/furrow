@@ -18,7 +18,7 @@ import { fusePosition } from "@/lib/fusion/position-fusion";
 import { currentCropYear } from "@/lib/inputs/ledger";
 import { getHoldings } from "@/lib/inputs/queries";
 import { cashProvider } from "@/lib/markets/manual-basis";
-import { getMarketOutlook } from "@/lib/outlook/synthesis";
+import { getCachedOutlook } from "@/lib/outlook/synthesis";
 import {
   deltaFromHistory,
   getFuturesHistory,
@@ -34,6 +34,10 @@ import {
 import type { Crop } from "@/lib/types/database";
 
 export const metadata: Metadata = { title: "Markets" };
+export const dynamic = "force-dynamic";
+// The page renders from the cached read instantly; maxDuration only covers the
+// background `after()` regen that self-heals a stale cache.
+export const maxDuration = 90;
 
 export default async function MarketsPage({
   searchParams,
@@ -68,7 +72,7 @@ export default async function MarketsPage({
   const [historyR, cashR, outlookR, targetR, holdingsR] = await Promise.allSettled([
     getFuturesHistory(symbol, now),
     cashProvider.getCashPrice(crop, activeFarm.id),
-    getMarketOutlook(crop, activeFarm.id, now),
+    getCachedOutlook(crop, activeFarm.id, now),
     getBreakevenTarget(activeFarm.id, crop),
     getHoldings(activeFarm.id, currentCropYear(now)),
   ]);
