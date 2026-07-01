@@ -34,12 +34,12 @@ export function MarketReadPulse({ pulse }: { pulse: MarketReadView }) {
     );
   }
 
-  // The essence of the read, shown in FULL (never truncated): the dominant
-  // tension's "why" — which side leads now and what could flip it — which is
-  // both the most decision-relevant line and consistently tighter than the full
-  // summary. Falls back to the summary when a read has no dominant tension. The
-  // six factors, macro strip, and full narrative live behind "See full read".
-  const essence = read.dominantTension?.why ?? read.summary;
+  // The essence of the read, shown in FULL (never truncated): the sharp pulse —
+  // 2 causal sentences naming the competing forces + net result, generated and
+  // cached with the read. Falls back to the dominant tension's "why", then the
+  // summary, for older reads generated before the pulse existed. The six
+  // factors, macro strip, and full narrative live behind "See full read".
+  const essence = read.pulse ?? read.dominantTension?.why ?? read.summary;
 
   return (
     <Card className="flex flex-col gap-2.5 p-4">

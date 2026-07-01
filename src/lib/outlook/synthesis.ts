@@ -110,6 +110,16 @@ export type OutlookV2 = {
   crop: Crop;
   signal: Signal;
   summary: string;
+  /**
+   * The sharp DASHBOARD pulse — 2 short sentences: what the market did + the
+   * specific competing forces (named, with direction) + the net result. Derived
+   * from this same read's tension + factors when the outlook is generated, and
+   * stored here so the dashboard reads it instantly (no per-load model call).
+   * Describes what happened and why — never a prediction or advice. `null` when
+   * it couldn't be produced (or an older read predates this field); the
+   * dashboard then falls back to the tension "why".
+   */
+  pulse: string | null;
   factors: OutlookFactorV2[];
   seasonalContext: SeasonalContext;
   dominantTension: DominantTension | null;
@@ -1111,10 +1121,22 @@ async function generate(
         isDriver: Boolean(w.is_driver),
       }));
 
+    // The sharp dashboard pulse — a second, small, focused call that summarizes
+    // THIS read's own tension + factors into 2 causal sentences. Generated with
+    // the read and stored, so the dashboard reads it instantly. Fails safe to
+    // null (dashboard falls back to the tension "why").
+    const pulse = await generatePulse(crop, {
+      signal,
+      factors,
+      dominantTension,
+      priceTrend: corpus.freshness.priceTrend,
+    });
+
     return {
       crop,
       signal,
       summary: String(input.summary ?? "").trim(),
+      pulse,
       factors,
       seasonalContext: corpus.seasonalContext,
       dominantTension,
@@ -1128,6 +1150,136 @@ async function generate(
       attribution: NASS_ATTRIBUTION,
       sampleData: corpus.sampleData,
     };
+  } catch {
+    return null;
+  }
+}
+
+// ── the sharp dashboard pulse ────────────────────────────────────────────────
+
+/**
+ * Forward-looking / advice / price-target language the dashboard pulse must
+ * NEVER contain. The pulse DESCRIBES what the market did and the forces behind
+ * it (past/present, causal) — it never forecasts or advises. Word-boundary
+ * matched so descriptive words survive: "expected" (surprise-not-level),
+ * "buyers"/"sellers", "holding"/"demand is holding", "considerable". A trip
+ * fails the pulse SAFE → the dashboard falls back to the engine's already-vetted
+ * tension "why".
+ */
+const PULSE_FORBIDDEN: RegExp[] = [
+  /\bexpect(s|ing)?\b/i,
+  /\bwill\b/i,
+  /\bwon['’]t\b/i,
+  /\b\w+['’]ll\b/i, // it'll / they'll / prices'll
+  /\bshould\b/i,
+  /\bhead(ed|ing)\s+(higher|lower|up|down|north|south|back|toward)/i, // "headed higher" — NOT "heading into pollination"
+  /\blook for\b/i,
+  /\bgoing forward\b/i,
+  /\blikely to\b/i,
+  /\bpredict\w*/i,
+  /\bnext (target|level|leg|move|stop)\b/i,
+  /\bbreakout\b/i,
+  /\bprice target/i, // a PRICE target — not "USDA's export target" (a demand metric)
+  /\b(sell|buy|hold|wait|consider)\b/i, // advice verbs; boundaries spare buyers/sellers/holders/holding
+  /\block in\b/i,
+  /\$\s?\d/, // a price target / level
+];
+
+/** True if the pulse contains any forbidden forecast/advice/price-target term. */
+export function pulseViolatesHonesty(pulse: string): boolean {
+  return PULSE_FORBIDDEN.some((re) => re.test(pulse));
+}
+
+const PULSE_SYSTEM = `You write ONE sharp market pulse for a U.S. grain farmer's dashboard — the kind of line a good market advisor texts. You are handed the engine's ALREADY-COMPUTED read for the crop: its competing forces, net lean, the key factors (each tagged with the direction it pushes PRICE), and the recent price trend. Reason ONLY over what you are given — never invent a number, force, or fact.
+
+Write it TIGHT, like a text: ONE or TWO short sentences, about 40 words total AT MOST. Lead with what the market DID (the price direction), then name the specific competing forces — which way each pushes — and the net result. Do NOT flatten it to "mixed." Plain farmer English, direct, no hype, no jargon-dumping, no filler. Model the punch on: "Corn firmed despite a bigger-than-expected acreage number — tighter old-crop stocks and strong demand outweighed it."
+
+HARD RULES — the pulse DESCRIBES what happened and why; it is NEVER a prediction or advice:
+- NEVER predict where price goes next: no "expect", "will", "headed higher/lower", "look for", "going forward", "likely to", "next target/level", "breakout".
+- NEVER advise: no "sell", "buy", "lock in", "hold", "wait", "consider".
+- NEVER name a price target, level, or "$X".
+- Past/present tense only — what the market DID and the forces behind it.
+- If the read is genuinely quiet or uncertain, SAY SO plainly (e.g. "a quiet stretch with little fresh direction") — don't manufacture drama.
+
+Record it with the record_pulse tool.`;
+
+const PULSE_TOOL: Anthropic.Tool = {
+  name: "record_pulse",
+  description: "Record the 2-sentence dashboard market pulse.",
+  input_schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      pulse: {
+        type: "string",
+        description:
+          "2 short sentences max: what the market did + the named competing forces (with direction) + the net result. No prediction, no advice, no price targets.",
+      },
+    },
+    required: ["pulse"],
+  },
+};
+
+/**
+ * Generate the sharp dashboard pulse from a read's OWN computed tension + factors
+ * — a small, focused, second call (natural causal phrasing) run WHEN the outlook
+ * is generated. Grounded strictly in the passed-in reasoning; fails safe to null.
+ */
+async function generatePulse(
+  crop: Crop,
+  read: {
+    signal: Signal;
+    factors: OutlookFactorV2[];
+    dominantTension: DominantTension | null;
+    priceTrend: string;
+  },
+): Promise<string | null> {
+  // Need the tension or at least a couple of factors to say anything grounded.
+  if (!read.dominantTension && read.factors.length < 2) return null;
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  try {
+    const dt = read.dominantTension;
+    const dirPhrase = (d: OutlookFactorV2["direction"]) =>
+      d === "up" ? "supportive → pushes price UP" : d === "down" ? "pressuring → pushes price DOWN" : "neutral";
+    const lines: string[] = [
+      `CROP: ${CROP_LABEL[crop]}`,
+      `Engine's overall lean (signal): ${read.signal}`,
+      `Recent price trend: ${read.priceTrend}`,
+    ];
+    if (dt) {
+      lines.push(
+        "",
+        "The engine's dominant tension (the competing forces):",
+        `- Bullish force (up): ${dt.forceUp}`,
+        `- Bearish force (down): ${dt.forceDown}`,
+        `- Net lean: ${dt.leans} — ${dt.why}`,
+      );
+    }
+    if (read.factors.length) {
+      lines.push("", "Key factors (with the direction each pushes price):");
+      for (const f of read.factors.slice(0, 4)) {
+        lines.push(`- [${dirPhrase(f.direction)}] ${f.text}`);
+      }
+    }
+
+    const client = new Anthropic({ maxRetries: 3, timeout: 30_000 });
+    const resp = await client.messages.create({
+      model: OUTLOOK_MODEL,
+      max_tokens: 240,
+      system: PULSE_SYSTEM,
+      tools: [PULSE_TOOL],
+      tool_choice: { type: "tool", name: "record_pulse" },
+      messages: [{ role: "user", content: lines.join("\n") }],
+    });
+
+    const block = resp.content.find((b) => b.type === "tool_use");
+    if (!block || block.type !== "tool_use") return null;
+    const pulse = String((block.input as { pulse?: string }).pulse ?? "").trim();
+    if (!pulse) return null;
+    // Fail SAFE: if any forecast/advice/price-target language slipped through,
+    // drop the pulse rather than show it — never surface a prediction/advice.
+    if (pulseViolatesHonesty(pulse)) return null;
+    return pulse;
   } catch {
     return null;
   }
