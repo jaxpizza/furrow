@@ -34,6 +34,13 @@ export function MarketReadPulse({ pulse }: { pulse: MarketReadView }) {
     );
   }
 
+  // The essence of the read, shown in FULL (never truncated): the dominant
+  // tension's "why" — which side leads now and what could flip it — which is
+  // both the most decision-relevant line and consistently tighter than the full
+  // summary. Falls back to the summary when a read has no dominant tension. The
+  // six factors, macro strip, and full narrative live behind "See full read".
+  const essence = read.dominantTension?.why ?? read.summary;
+
   return (
     <Card className="flex flex-col gap-2.5 p-4">
       <div className="flex items-center justify-between gap-2">
@@ -41,7 +48,7 @@ export function MarketReadPulse({ pulse }: { pulse: MarketReadView }) {
         <SignalBadge signal={read.signal} />
       </div>
 
-      <p className="text-foreground line-clamp-2 text-sm leading-relaxed">{read.summary}</p>
+      <p className="text-foreground text-sm leading-relaxed">{essence}</p>
 
       <div className="flex items-center justify-between gap-2">
         {readUpdatedLabel ? (
