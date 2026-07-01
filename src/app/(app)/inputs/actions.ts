@@ -3,52 +3,52 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { allocateWholeFarm, CROPS } from "@/lib/inputs/ledger";
 import type { Crop } from "@/lib/types/database";
 
 type DB = Awaited<ReturnType<typeof createClient>>;
 type Result = { ok: boolean; error?: string };
 
 /**
- * Recompute breakeven_targets from the EXPENSE LEDGER for (farm, crop, year):
- * cost_per_acre = Σ line_total ÷ acres. The DB-generated effective_breakeven
- * (cost_per_acre ÷ expected_yield) is then the SAME number the markets card,
- * terminal, cash-vs-break-even chart, and alert evaluator already read — fed now
- * by the summed ledger instead of a typed-in total. Never forked.
- * (profit_target_per_bushel is intentionally omitted so a target set on the
- * markets card is preserved.)
+ * Recompute breakeven_targets from the EXPENSE LEDGER for BOTH crops of a (farm,
+ * year): each crop's cost_per_acre = (its crop-tagged expenses + its acreage
+ * share of whole-farm/crop=null expenses) ÷ acres. The DB-generated
+ * effective_breakeven (cost_per_acre ÷ expected_yield) is then the SAME number
+ * the markets card, terminal, cash-vs-break-even chart, and alert evaluator read
+ * — never forked. Both crops are recomputed together because whole-farm costs and
+ * acreage are cross-crop. (profit_target_per_bushel is omitted so a target set on
+ * the markets card is preserved.)
  */
-async function syncBreakeven(supabase: DB, farmId: string, crop: Crop, cropYear: number) {
+async function syncBreakeven(supabase: DB, farmId: string, cropYear: number) {
   const [{ data: exp }, { data: settings }] = await Promise.all([
-    supabase
-      .from("expense_entries")
-      .select("line_total")
-      .eq("farm_id", farmId)
-      .eq("crop", crop)
-      .eq("crop_year", cropYear),
-    supabase
-      .from("crop_year_settings")
-      .select("acres, expected_yield")
-      .eq("farm_id", farmId)
-      .eq("crop", crop)
-      .eq("crop_year", cropYear)
-      .maybeSingle(),
+    supabase.from("expense_entries").select("crop, line_total").eq("farm_id", farmId).eq("crop_year", cropYear),
+    supabase.from("crop_year_settings").select("crop, acres, expected_yield").eq("farm_id", farmId).eq("crop_year", cropYear),
   ]);
-  const total = (exp ?? []).reduce((s, e) => s + (Number(e.line_total) || 0), 0);
-  const acres = settings?.acres ?? null;
-  const costPerAcre = acres && acres > 0 ? Math.round((total / acres) * 100) / 100 : null;
-  await supabase.from("breakeven_targets").upsert(
-    {
-      farm_id: farmId,
-      crop,
-      entry_mode: "per_acre_yield",
-      cost_per_bushel: null,
-      cost_per_acre: costPerAcre,
-      expected_yield: settings?.expected_yield ?? null,
-      active: true,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "farm_id,crop" },
-  );
+  const expenses = (exp ?? []).map((e) => ({ crop: e.crop as Crop | null, lineTotal: Number(e.line_total) || 0 }));
+  const acresByCrop = { corn: null, soybean: null } as Record<Crop, number | null>;
+  const yieldByCrop = { corn: null, soybean: null } as Record<Crop, number | null>;
+  for (const s of settings ?? []) {
+    acresByCrop[s.crop as Crop] = s.acres;
+    yieldByCrop[s.crop as Crop] = s.expected_yield;
+  }
+  const alloc = allocateWholeFarm(expenses, acresByCrop);
+  for (const crop of CROPS) {
+    const acres = acresByCrop[crop];
+    const costPerAcre = acres && acres > 0 ? Math.round((alloc[crop].total / acres) * 100) / 100 : null;
+    await supabase.from("breakeven_targets").upsert(
+      {
+        farm_id: farmId,
+        crop,
+        entry_mode: "per_acre_yield",
+        cost_per_bushel: null,
+        cost_per_acre: costPerAcre,
+        expected_yield: yieldByCrop[crop] ?? null,
+        active: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "farm_id,crop" },
+    );
+  }
 }
 
 const done = (error?: { message?: string } | null): Result => {
@@ -59,7 +59,7 @@ const done = (error?: { message?: string } | null): Result => {
 // ── Ledger 1: expenses ───────────────────────────────────────────────────────
 export async function addExpense(input: {
   farmId: string;
-  crop: Crop;
+  crop: Crop | null; // null = whole-farm (allocated across crops by acreage)
   cropYear: number;
   category: string;
   description: string;
@@ -78,14 +78,14 @@ export async function addExpense(input: {
     quantity: input.quantity,
     entry_date: input.entryDate,
   });
-  if (!error) await syncBreakeven(supabase, input.farmId, input.crop, input.cropYear);
+  if (!error) await syncBreakeven(supabase, input.farmId, input.cropYear);
   return done(error);
 }
 
-export async function deleteExpense(input: { id: string; farmId: string; crop: Crop; cropYear: number }): Promise<Result> {
+export async function deleteExpense(input: { id: string; farmId: string; cropYear: number }): Promise<Result> {
   const supabase = await createClient();
   const { error } = await supabase.from("expense_entries").delete().eq("id", input.id);
-  if (!error) await syncBreakeven(supabase, input.farmId, input.crop, input.cropYear);
+  if (!error) await syncBreakeven(supabase, input.farmId, input.cropYear);
   return done(error);
 }
 
@@ -108,7 +108,7 @@ export async function saveCropSettings(input: {
     },
     { onConflict: "farm_id,crop,crop_year" },
   );
-  if (!error) await syncBreakeven(supabase, input.farmId, input.crop, input.cropYear);
+  if (!error) await syncBreakeven(supabase, input.farmId, input.cropYear);
   return done(error);
 }
 

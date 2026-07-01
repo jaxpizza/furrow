@@ -30,9 +30,11 @@ export function currentCropYear(now: Date = new Date()): number {
 }
 
 // ── row view types (mapped from the DB rows) — crop is a property of each entry ─
+// crop is NULL for a "whole farm" expense (fuel, parts, general maintenance) —
+// not tied to one crop; allocated across crops by acreage in the break-even.
 export type ExpenseEntry = {
   id: string;
-  crop: Crop;
+  crop: Crop | null;
   category: string;
   description: string | null;
   unitCost: number;
@@ -88,6 +90,45 @@ export function ledgerBreakeven(total: number, acres: number | null, expectedYie
       ? Math.round((costPerAcre / expectedYield) * 10000) / 10000
       : null;
   return { costPerAcre, effective };
+}
+
+/** Each crop's cost that feeds its break-even, split into what it owns directly
+ *  and its allocated share of whole-farm costs (for transparent display). */
+export type CropAllocation = {
+  tagged: number; // expenses tagged directly to this crop
+  wholeFarmAllocated: number; // this crop's share of whole-farm (crop = null) expenses
+  total: number; // tagged + allocated → the cost that feeds break-even
+  sharePct: number | null; // acreage share used for allocation (null if no acres set anywhere)
+};
+
+/**
+ * Allocate whole-farm (crop = null) expenses across crops by ACREAGE SHARE, and
+ * return each crop's total cost (tagged + allocated). Every real cost lands
+ * somewhere — whole-farm is split by acres (each crop's acres ÷ total acres),
+ * never dropped, so the break-even never understates true cost. If no crop has
+ * acres yet, whole-farm can't be allocated (share 0) — it flows in once acres
+ * are set. If only one crop has acres, it takes the whole-farm cost entirely.
+ */
+export function allocateWholeFarm(
+  expenses: { crop: Crop | null; lineTotal: number }[],
+  acresByCrop: Record<Crop, number | null>,
+): Record<Crop, CropAllocation> {
+  const wholeFarm = expenses.filter((e) => e.crop == null).reduce((s, e) => s + e.lineTotal, 0);
+  const acresOf = (c: Crop) => (acresByCrop[c] && acresByCrop[c]! > 0 ? acresByCrop[c]! : 0);
+  const totalAcres = CROPS.reduce((s, c) => s + acresOf(c), 0);
+  const out = {} as Record<Crop, CropAllocation>;
+  for (const c of CROPS) {
+    const tagged = expenses.filter((e) => e.crop === c).reduce((s, e) => s + e.lineTotal, 0);
+    const share = totalAcres > 0 ? acresOf(c) / totalAcres : 0;
+    const allocated = Math.round(wholeFarm * share * 100) / 100;
+    out[c] = {
+      tagged: Math.round(tagged * 100) / 100,
+      wholeFarmAllocated: allocated,
+      total: Math.round((tagged + allocated) * 100) / 100,
+      sharePct: totalAcres > 0 ? Math.round(share * 100) : null,
+    };
+  }
+  return out;
 }
 
 export function salesTotals(sales: SaleEntry[]) {

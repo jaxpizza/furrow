@@ -12,10 +12,10 @@ import { StorageManager } from "@/components/inputs/storage-manager";
 import { ACTIVE_FARM_COOKIE } from "@/lib/constants";
 import { getSessionContext } from "@/lib/farm";
 import {
+  allocateWholeFarm,
   computePosition,
   CROPS,
   currentCropYear,
-  expenseTotals,
   ledgerBreakeven,
   type ExpenseEntry,
   type HarvestEntry,
@@ -94,14 +94,22 @@ export default async function InputsPage() {
   );
 
   // The break-even ANSWER per crop — the SAME computation the CropBreakeven card,
-  // dashboard, markets, and alerts use (total logged cost ÷ acres ÷ expected yield).
+  // dashboard, markets, and alerts use: (crop-tagged expenses + acreage-allocated
+  // share of whole-farm expenses) ÷ acres ÷ expected yield.
+  const acresByCrop = {
+    corn: settingsByCrop.corn?.acres ?? null,
+    soybean: settingsByCrop.soybean?.acres ?? null,
+  } as Record<Crop, number | null>;
+  const alloc = allocateWholeFarm(
+    expenses.map((e) => ({ crop: e.crop, lineTotal: e.lineTotal })),
+    acresByCrop,
+  );
   const breakevenItems: BreakevenView[] = CROPS.map((c) => {
-    const total = expenseTotals(expenses.filter((e) => e.crop === c)).total;
     const s = settingsByCrop[c];
     return {
       crop: c,
       label: CROP_LABEL[c],
-      breakeven: ledgerBreakeven(total, s?.acres ?? null, s?.expectedYield ?? null).effective,
+      breakeven: ledgerBreakeven(alloc[c].total, s?.acres ?? null, s?.expectedYield ?? null).effective,
     };
   });
 

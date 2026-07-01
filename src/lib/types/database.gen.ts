@@ -290,7 +290,7 @@ export type Database = {
         Row: {
           category: string
           created_at: string
-          crop: Database["public"]["Enums"]["crop"]
+          crop: Database["public"]["Enums"]["crop"] | null
           crop_year: number
           description: string | null
           entry_date: string
@@ -303,7 +303,7 @@ export type Database = {
         Insert: {
           category: string
           created_at?: string
-          crop: Database["public"]["Enums"]["crop"]
+          crop?: Database["public"]["Enums"]["crop"] | null
           crop_year: number
           description?: string | null
           entry_date?: string
@@ -316,7 +316,7 @@ export type Database = {
         Update: {
           category?: string
           created_at?: string
-          crop?: Database["public"]["Enums"]["crop"]
+          crop?: Database["public"]["Enums"]["crop"] | null
           crop_year?: number
           description?: string | null
           entry_date?: string

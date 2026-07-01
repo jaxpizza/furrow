@@ -5,34 +5,36 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { ledgerBreakeven } from "@/lib/inputs/ledger";
+import { ledgerBreakeven, type CropAllocation } from "@/lib/inputs/ledger";
 import type { Crop } from "@/lib/types/database";
 
 import { saveCropSettings } from "@/app/(app)/inputs/actions";
 import { MoneyField, numStr, toNum } from "./field";
 
 /** Per-crop break-even: acres + expected yield for THIS crop, divided into its
- *  summed expenses. Saving flows to breakeven_targets (the same number markets/
- *  terminal/alerts read). */
+ *  cost — its own tagged expenses PLUS its acreage share of whole-farm costs
+ *  (shown transparently). Saving flows to breakeven_targets (the same number
+ *  markets/terminal/alerts read). */
 export function CropBreakeven({
   farmId,
   crop,
   cropLabel,
   cropYear,
-  total,
+  allocation,
   settings,
 }: {
   farmId: string;
   crop: Crop;
   cropLabel: string;
   cropYear: number;
-  total: number;
+  allocation: CropAllocation;
   settings: { acres: number | null; expectedYield: number | null } | null;
 }) {
   const [acres, setAcres] = useState(numStr(settings?.acres));
   const [yield_, setYield] = useState(numStr(settings?.expectedYield));
   const [saving, setSaving] = useState(false);
-  const be = ledgerBreakeven(total, toNum(acres), toNum(yield_));
+  const be = ledgerBreakeven(allocation.total, toNum(acres), toNum(yield_));
+  const hasWholeFarm = allocation.wholeFarmAllocated > 0;
 
   async function save() {
     setSaving(true);
@@ -50,10 +52,24 @@ export function CropBreakeven({
         <MoneyField id={`be-yield-${crop}`} label="Yield" unit="bu/ac" value={yield_} onChange={setYield} placeholder="205" step="1" />
       </div>
       <dl className="text-text-tertiary mt-2 space-y-0.5 text-[11px]">
+        {hasWholeFarm && (
+          <>
+            <div className="flex justify-between">
+              <dt>{cropLabel}-tagged cost</dt>
+              <dd className="tnum text-text-secondary">${allocation.tagged.toLocaleString()}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>
+                + whole-farm{allocation.sharePct != null ? ` (${allocation.sharePct}% by acres)` : ""}
+              </dt>
+              <dd className="tnum text-text-secondary">${allocation.wholeFarmAllocated.toLocaleString()}</dd>
+            </div>
+          </>
+        )}
         <div className="flex justify-between">
-          <dt>Logged cost ÷ acres</dt>
+          <dt>{hasWholeFarm ? "Total cost ÷ acres" : "Logged cost ÷ acres"}</dt>
           <dd className="tnum text-text-secondary">
-            ${total.toLocaleString()} {be.costPerAcre != null ? `÷ ${toNum(acres)} = $${be.costPerAcre.toFixed(0)}/ac` : ""}
+            ${allocation.total.toLocaleString()} {be.costPerAcre != null ? `÷ ${toNum(acres)} = $${be.costPerAcre.toFixed(0)}/ac` : ""}
           </dd>
         </div>
         <div className="flex justify-between">

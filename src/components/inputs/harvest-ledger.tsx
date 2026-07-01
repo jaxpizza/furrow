@@ -1,28 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
 import { Explainer } from "@/components/common/explainer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CROPS, productionTotal, type HarvestEntry, type StorageLocation } from "@/lib/inputs/ledger";
 import { CROP_LABEL } from "@/lib/markets/symbols";
-import type { Crop } from "@/lib/types/database";
 
-import { addHarvest, deleteHarvest } from "@/app/(app)/inputs/actions";
-import { CropBadge, CropSelect, DeleteButton, MoneyField, TextField, toNum, todayIso } from "./field";
+import { deleteHarvest } from "@/app/(app)/inputs/actions";
+import { HarvestForm } from "./entry-forms";
+import { CropBadge, DeleteButton } from "./field";
 
 export function HarvestLedger({
   farmId,
@@ -86,6 +76,7 @@ export function HarvestLedger({
   );
 }
 
+/** Trigger + dialog chrome around the SHARED HarvestForm (same fields as the "+"). */
 function AddHarvestDialog({
   farmId,
   cropYear,
@@ -98,41 +89,6 @@ function AddHarvestDialog({
   fields: { id: string; name: string }[];
 }) {
   const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [crop, setCrop] = useState<Crop>("corn");
-  const [bushels, setBushels] = useState("");
-  const [loc, setLoc] = useState<string>(locations[0]?.id ?? "none");
-  // Field is OPTIONAL — defaults to "none" (farm-level). Picking one builds that
-  // field's per-year yield history on the Fields tab.
-  const [field, setField] = useState<string>("none");
-  const [moisture, setMoisture] = useState("");
-  const [notes, setNotes] = useState("");
-  const [entryDate, setEntryDate] = useState(todayIso());
-
-  async function submit() {
-    if (toNum(bushels) == null) return toast.error("Enter bushels.");
-    setPending(true);
-    const r = await addHarvest({
-      farmId,
-      crop,
-      cropYear,
-      bushels: toNum(bushels) ?? 0,
-      storageLocationId: loc === "none" ? null : loc,
-      moisture: toNum(moisture),
-      notes,
-      entryDate,
-      fieldId: field === "none" ? null : field,
-    });
-    setPending(false);
-    if (!r.ok) return toast.error(r.error ?? "Could not add.");
-    toast.success("Harvest logged");
-    setOpen(false);
-    setBushels("");
-    setMoisture("");
-    setNotes("");
-    setField("none");
-  }
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -144,59 +100,7 @@ function AddHarvestDialog({
         <DialogHeader>
           <DialogTitle>Add harvest</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <CropSelect value={crop} onChange={setCrop} />
-            <MoneyField id="ah-bu" label="Bushels" unit="bu" value={bushels} onChange={setBushels} placeholder="2400" step="1" />
-          </div>
-          <div className="space-y-1">
-            <Label>Stored in</Label>
-            <Select value={loc} onValueChange={setLoc}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {locations.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
-                    {l.name} ({l.kind === "owned" ? "on-farm" : "commercial"})
-                  </SelectItem>
-                ))}
-                <SelectItem value="none">Unassigned</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {fields.length > 0 && (
-            <div className="space-y-1">
-              <Label>
-                Field <span className="text-text-tertiary font-normal">· optional — builds this field&apos;s yield history</span>
-              </Label>
-              <Select value={field} onValueChange={setField}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No field</SelectItem>
-                  {fields.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {f.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <MoneyField id="ah-moist" label="Moisture" hint="optional" unit="%" value={moisture} onChange={setMoisture} placeholder="15.5" />
-            <TextField id="ah-date" label="Date" type="date" value={entryDate} onChange={setEntryDate} />
-          </div>
-          <TextField id="ah-notes" label="Notes" hint="optional" value={notes} onChange={setNotes} placeholder="North 80" />
-        </div>
-        <DialogFooter>
-          <Button onClick={submit} disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            Add harvest
-          </Button>
-        </DialogFooter>
+        <HarvestForm farmId={farmId} cropYear={cropYear} locations={locations} fields={fields} onDone={() => setOpen(false)} idPrefix="in-harv" />
       </DialogContent>
     </Dialog>
   );

@@ -1,28 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
 import { Explainer } from "@/components/common/explainer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CROPS, salesTotals, type SaleEntry, type StorageLocation } from "@/lib/inputs/ledger";
 import { CROP_LABEL } from "@/lib/markets/symbols";
-import type { Crop } from "@/lib/types/database";
 
-import { addSale, deleteSale } from "@/app/(app)/inputs/actions";
-import { CropBadge, CropSelect, DeleteButton, MoneyField, TextField, toNum, todayIso } from "./field";
+import { deleteSale } from "@/app/(app)/inputs/actions";
+import { SaleForm } from "./entry-forms";
+import { CropBadge, DeleteButton } from "./field";
 
 export function SaleLedger({
   farmId,
@@ -87,6 +77,7 @@ export function SaleLedger({
   );
 }
 
+/** Trigger + dialog chrome around the SHARED SaleForm (same fields as the "+"). */
 function AddSaleDialog({
   farmId,
   cropYear,
@@ -97,36 +88,6 @@ function AddSaleDialog({
   locations: StorageLocation[];
 }) {
   const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [crop, setCrop] = useState<Crop>("corn");
-  const [bushels, setBushels] = useState("");
-  const [price, setPrice] = useState("");
-  const [loc, setLoc] = useState<string>(locations[0]?.id ?? "none");
-  const [buyer, setBuyer] = useState("");
-  const [entryDate, setEntryDate] = useState(todayIso());
-
-  async function submit() {
-    if (toNum(bushels) == null || toNum(price) == null) return toast.error("Enter bushels and price.");
-    setPending(true);
-    const r = await addSale({
-      farmId,
-      crop,
-      cropYear,
-      bushels: toNum(bushels) ?? 0,
-      price: toNum(price) ?? 0,
-      storageLocationId: loc === "none" ? null : loc,
-      buyer,
-      entryDate,
-    });
-    setPending(false);
-    if (!r.ok) return toast.error(r.error ?? "Could not add.");
-    toast.success("Sale logged");
-    setOpen(false);
-    setBushels("");
-    setPrice("");
-    setBuyer("");
-  }
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -138,39 +99,7 @@ function AddSaleDialog({
         <DialogHeader>
           <DialogTitle>Add sale</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <CropSelect value={crop} onChange={setCrop} />
-            <MoneyField id="as-bu" label="Bushels" unit="bu" value={bushels} onChange={setBushels} placeholder="5000" step="1" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <MoneyField id="as-price" label="Price" unit="$/bu" value={price} onChange={setPrice} placeholder="4.40" />
-            <div className="space-y-1">
-              <Label>Sold from</Label>
-              <Select value={loc} onValueChange={setLoc}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {locations.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.name} ({l.kind === "owned" ? "on-farm" : "commercial"})
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="none">Unassigned</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <TextField id="as-buyer" label="Buyer" hint="optional" value={buyer} onChange={setBuyer} placeholder="Smith Co-op" />
-          <TextField id="as-date" label="Date" type="date" value={entryDate} onChange={setEntryDate} />
-        </div>
-        <DialogFooter>
-          <Button onClick={submit} disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            Add sale
-          </Button>
-        </DialogFooter>
+        <SaleForm farmId={farmId} cropYear={cropYear} locations={locations} onDone={() => setOpen(false)} idPrefix="in-sale" />
       </DialogContent>
     </Dialog>
   );

@@ -1,18 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, DollarSign, Loader2, Plus, Receipt, Sprout, X } from "lucide-react";
-import { toast } from "sonner";
+import { ArrowLeft, DollarSign, Plus, Receipt, Sprout, X } from "lucide-react";
 
-import { addExpense, addHarvest, addSale } from "@/app/(app)/inputs/actions";
-import { CropSelect, MoneyField, TextField, toNum, todayIso } from "@/components/inputs/field";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { EXPENSE_CATEGORIES } from "@/lib/inputs/ledger";
-import type { Crop } from "@/lib/types/database";
+import { ExpenseForm, HarvestForm, SaleForm } from "@/components/inputs/entry-forms";
 
 export type QuickAddLocation = { id: string; name: string; kind: string };
 export type QuickAddField = { id: string; name: string };
@@ -20,9 +13,10 @@ type Kind = "expense" | "sale" | "harvest";
 
 /**
  * The app-wide fast path: a thumb-friendly "+" that opens a bottom sheet to log
- * an expense, sale, or harvest in a few taps — writing to the SAME ledger tables
- * (and feeding the SAME break-even) as the full Inputs page, then refreshing the
- * page so the change shows immediately. The Inputs page stays for detailed work.
+ * an expense, sale, or harvest in a few taps. It renders the SAME shared forms
+ * (entry-forms.tsx) the Inputs tab uses, so the fields are identical field-for-
+ * field — writing to the same ledgers and feeding the same break-even — just in a
+ * fast, mobile-friendly sheet. The Inputs page stays for detailed work.
  */
 export function QuickAdd({
   farmId,
@@ -89,11 +83,11 @@ export function QuickAdd({
               {!kind ? (
                 <TypePicker onPick={setKind} />
               ) : kind === "expense" ? (
-                <ExpenseForm farmId={farmId} cropYear={cropYear} onDone={close} />
+                <ExpenseForm farmId={farmId} cropYear={cropYear} onDone={close} idPrefix="qa-exp" />
               ) : kind === "sale" ? (
-                <SaleForm farmId={farmId} cropYear={cropYear} locations={locations} onDone={close} />
+                <SaleForm farmId={farmId} cropYear={cropYear} locations={locations} onDone={close} idPrefix="qa-sale" />
               ) : (
-                <HarvestForm farmId={farmId} cropYear={cropYear} locations={locations} fields={fields} onDone={close} />
+                <HarvestForm farmId={farmId} cropYear={cropYear} locations={locations} fields={fields} onDone={close} idPrefix="qa-harv" />
               )}
             </motion.div>
           </div>,
@@ -127,239 +121,6 @@ function TypePicker({ onPick }: { onPick: (k: Kind) => void }) {
           </span>
         </button>
       ))}
-    </div>
-  );
-}
-
-function SubmitButton({ pending, onClick, label }: { pending: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={pending}
-      className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[#1b1403] transition-opacity disabled:opacity-60"
-    >
-      {pending && <Loader2 className="size-4 animate-spin" />}
-      {label}
-    </button>
-  );
-}
-
-function LocationSelect({
-  locations,
-  value,
-  onChange,
-}: {
-  locations: QuickAddLocation[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label>{value === "none" ? "Location" : "Location"}</Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {locations.map((l) => (
-            <SelectItem key={l.id} value={l.id}>
-              {l.name} ({l.kind === "owned" ? "on-farm" : "commercial"})
-            </SelectItem>
-          ))}
-          <SelectItem value="none">Unassigned</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
-function ExpenseForm({ farmId, cropYear, onDone }: { farmId: string; cropYear: number; onDone: () => void }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [crop, setCrop] = useState<Crop>("corn");
-  const [category, setCategory] = useState("seed");
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(todayIso());
-
-  function submit() {
-    if (toNum(amount) == null) return toast.error("Enter the amount.");
-    start(async () => {
-      const r = await addExpense({
-        farmId, crop, cropYear, category, description: "", unitCost: toNum(amount) ?? 0, quantity: 1, entryDate: date,
-      });
-      if (!r.ok) {
-        toast.error(r.error ?? "Could not save.");
-        return;
-      }
-      toast.success("Expense logged");
-      router.refresh();
-      onDone();
-    });
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <CropSelect value={crop} onChange={setCrop} />
-        <div className="space-y-1">
-          <Label>Category</Label>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {EXPENSE_CATEGORIES.map((c) => (
-                <SelectItem key={c.key} value={c.key}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <MoneyField id="qa-exp-amt" label="Amount" unit="$" value={amount} onChange={setAmount} placeholder="1200" />
-      <TextField id="qa-exp-date" label="Date" type="date" value={date} onChange={setDate} />
-      <SubmitButton pending={pending} onClick={submit} label="Log expense" />
-    </div>
-  );
-}
-
-function SaleForm({
-  farmId,
-  cropYear,
-  locations,
-  onDone,
-}: {
-  farmId: string;
-  cropYear: number;
-  locations: QuickAddLocation[];
-  onDone: () => void;
-}) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [crop, setCrop] = useState<Crop>("corn");
-  const [bushels, setBushels] = useState("");
-  const [price, setPrice] = useState("");
-  const [loc, setLoc] = useState<string>(locations[0]?.id ?? "none");
-  const [date, setDate] = useState(todayIso());
-
-  function submit() {
-    if (toNum(bushels) == null || toNum(price) == null) return toast.error("Enter bushels and price.");
-    start(async () => {
-      const r = await addSale({
-        farmId, crop, cropYear, bushels: toNum(bushels) ?? 0, price: toNum(price) ?? 0,
-        storageLocationId: loc === "none" ? null : loc, buyer: "", entryDate: date,
-      });
-      if (!r.ok) {
-        toast.error(r.error ?? "Could not save.");
-        return;
-      }
-      toast.success("Sale logged");
-      router.refresh();
-      onDone();
-    });
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <CropSelect value={crop} onChange={setCrop} />
-        <MoneyField id="qa-sale-bu" label="Bushels" unit="bu" value={bushels} onChange={setBushels} placeholder="5000" step="1" />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <MoneyField id="qa-sale-price" label="Price" unit="$/bu" value={price} onChange={setPrice} placeholder="4.40" />
-        <LocationSelect locations={locations} value={loc} onChange={setLoc} />
-      </div>
-      <TextField id="qa-sale-date" label="Date" type="date" value={date} onChange={setDate} />
-      <SubmitButton pending={pending} onClick={submit} label="Log sale" />
-    </div>
-  );
-}
-
-function HarvestForm({
-  farmId,
-  cropYear,
-  locations,
-  fields,
-  onDone,
-}: {
-  farmId: string;
-  cropYear: number;
-  locations: QuickAddLocation[];
-  fields: QuickAddField[];
-  onDone: () => void;
-}) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [crop, setCrop] = useState<Crop>("corn");
-  const [bushels, setBushels] = useState("");
-  const [loc, setLoc] = useState<string>(locations[0]?.id ?? "none");
-  // Field is OPTIONAL — defaults to "none" so the simple flow stays a few taps.
-  const [field, setField] = useState<string>("none");
-  const [date, setDate] = useState(todayIso());
-
-  function submit() {
-    if (toNum(bushels) == null) return toast.error("Enter bushels.");
-    start(async () => {
-      const r = await addHarvest({
-        farmId, crop, cropYear, bushels: toNum(bushels) ?? 0,
-        storageLocationId: loc === "none" ? null : loc, moisture: null, notes: "", entryDate: date,
-        fieldId: field === "none" ? null : field,
-      });
-      if (!r.ok) {
-        toast.error(r.error ?? "Could not save.");
-        return;
-      }
-      toast.success("Harvest logged");
-      router.refresh();
-      onDone();
-    });
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <CropSelect value={crop} onChange={setCrop} />
-        <MoneyField id="qa-harv-bu" label="Bushels" unit="bu" value={bushels} onChange={setBushels} placeholder="2400" step="1" />
-      </div>
-      <LocationSelect locations={locations} value={loc} onChange={setLoc} />
-      {fields.length > 0 && <FieldSelect fields={fields} value={field} onChange={setField} />}
-      <TextField id="qa-harv-date" label="Date" type="date" value={date} onChange={setDate} />
-      <SubmitButton pending={pending} onClick={submit} label="Log harvest" />
-    </div>
-  );
-}
-
-/** Optional per-field tag for a harvest — defaults to "No field" so farm-level
- *  logging stays a few taps; picking one builds that field's yield history. */
-function FieldSelect({
-  fields,
-  value,
-  onChange,
-}: {
-  fields: QuickAddField[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-text-tertiary">
-        Field <span className="font-normal">· optional</span>
-      </Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">No field</SelectItem>
-          {fields.map((f) => (
-            <SelectItem key={f.id} value={f.id}>
-              {f.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
     </div>
   );
 }

@@ -29,8 +29,39 @@ export function CropSelect({ value, onChange }: { value: Crop; onChange: (c: Cro
   );
 }
 
-/** Per-row crop tag — colorblind-safe (distinct label + hue). */
-export function CropBadge({ crop }: { crop: Crop }) {
+/** "whole" = a whole-farm expense (crop = null) — not tied to one crop. */
+export type ExpenseCrop = Crop | "whole";
+
+/** Expense crop picker — like CropSelect but with a "Whole farm" option for costs
+ *  (fuel, parts, maintenance) that aren't tied to one crop. Whole-farm costs are
+ *  allocated across crops by acreage in the break-even, never dropped. */
+export function ExpenseCropSelect({ value, onChange }: { value: ExpenseCrop; onChange: (c: ExpenseCrop) => void }) {
+  return (
+    <div className="space-y-1">
+      <Label>Crop</Label>
+      <Select value={value} onValueChange={(v) => onChange(v as ExpenseCrop)}>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="corn">Corn</SelectItem>
+          <SelectItem value="soybean">Soybeans</SelectItem>
+          <SelectItem value="whole">Whole farm</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/** Per-row crop tag — colorblind-safe (distinct label + hue). null = whole farm. */
+export function CropBadge({ crop }: { crop: Crop | null }) {
+  if (crop == null) {
+    return (
+      <span className="text-text-secondary bg-bg-elevated shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+        Farm
+      </span>
+    );
+  }
   const corn = crop === "corn";
   return (
     <span

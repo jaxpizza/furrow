@@ -1,30 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
 import { Explainer } from "@/components/common/explainer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CATEGORY_LABEL, CROPS, EXPENSE_CATEGORIES, expenseTotals, type ExpenseEntry } from "@/lib/inputs/ledger";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { allocateWholeFarm, CATEGORY_LABEL, CROPS, expenseTotals, type ExpenseEntry } from "@/lib/inputs/ledger";
 import { CROP_LABEL } from "@/lib/markets/symbols";
 import type { Crop } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 
-import { addExpense, deleteExpense } from "@/app/(app)/inputs/actions";
+import { deleteExpense } from "@/app/(app)/inputs/actions";
 import { CropBreakeven } from "./crop-breakeven";
-import { CropBadge, CropSelect, DeleteButton, MoneyField, TextField, toNum, todayIso } from "./field";
+import { ExpenseForm } from "./entry-forms";
+import { CropBadge, DeleteButton } from "./field";
 
 export function ExpenseLedger({
   farmId,
@@ -41,13 +32,25 @@ export function ExpenseLedger({
   const shown = filter === "all" ? expenses : expenses.filter((e) => e.crop === filter);
   const shownTotal = expenseTotals(shown).total;
 
+  // Whole-farm (crop = null) costs allocated across crops by acreage — the SAME
+  // math syncBreakeven writes to breakeven_targets, surfaced here for transparency.
+  const acresByCrop = {
+    corn: settingsByCrop.corn?.acres ?? null,
+    soybean: settingsByCrop.soybean?.acres ?? null,
+  } as Record<Crop, number | null>;
+  const alloc = allocateWholeFarm(
+    expenses.map((e) => ({ crop: e.crop, lineTotal: e.lineTotal })),
+    acresByCrop,
+  );
+
   return (
     <Card className="p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <span className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">Your costs</span>
           <p className="text-text-tertiary mt-0.5 text-[11px] leading-relaxed">
-            Every expense you log feeds the break-even above.
+            Every expense you log feeds the break-even above. Not tied to one crop? Pick{" "}
+            <span className="text-foreground">Whole farm</span> — it&apos;s split across crops by acreage.
           </p>
         </div>
         <AddExpenseDialog farmId={farmId} cropYear={cropYear} />
@@ -75,7 +78,7 @@ export function ExpenseLedger({
                 {e.quantity !== 1 && <span className="text-text-tertiary tnum"> · ${e.unitCost} × {e.quantity}</span>}
               </span>
               <span className="tnum text-foreground shrink-0 font-medium">${e.lineTotal.toLocaleString()}</span>
-              <DeleteButton onDelete={() => deleteExpense({ id: e.id, farmId, crop: e.crop, cropYear })} />
+              <DeleteButton onDelete={() => deleteExpense({ id: e.id, farmId, cropYear })} />
             </li>
           ))}
           <li className="flex items-center justify-between py-2">
@@ -103,7 +106,7 @@ export function ExpenseLedger({
               crop={crop}
               cropLabel={CROP_LABEL[crop]}
               cropYear={cropYear}
-              total={expenseTotals(expenses.filter((e) => e.crop === crop)).total}
+              allocation={alloc[crop]}
               settings={settingsByCrop[crop]}
             />
           ))}
@@ -112,7 +115,8 @@ export function ExpenseLedger({
 
       <Explainer>
         Log every purchase as a line, picking the crop — buy $100 of corn seed, then $10 more, and that&apos;s
-        two entries that sum to $110 automatically. One unified log; corn and soybean numbers stay distinct.
+        two entries that sum to $110 automatically. Whole-farm costs (fuel, parts) split across crops by acreage.
+        One unified log; corn and soybean numbers stay distinct.
       </Explainer>
     </Card>
   );
@@ -138,39 +142,9 @@ function CropFilter({ value, onChange }: { value: Crop | "all"; onChange: (v: Cr
   );
 }
 
+/** Trigger + dialog chrome around the SHARED ExpenseForm (same fields as the "+"). */
 function AddExpenseDialog({ farmId, cropYear }: { farmId: string; cropYear: number }) {
   const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [crop, setCrop] = useState<Crop>("corn");
-  const [category, setCategory] = useState("seed");
-  const [description, setDescription] = useState("");
-  const [unitCost, setUnitCost] = useState("");
-  const [quantity, setQuantity] = useState("1");
-  const [entryDate, setEntryDate] = useState(todayIso());
-  const lineTotal = (toNum(unitCost) ?? 0) * (toNum(quantity) ?? 0);
-
-  async function submit() {
-    if (toNum(unitCost) == null) return toast.error("Enter the cost.");
-    setPending(true);
-    const r = await addExpense({
-      farmId,
-      crop,
-      cropYear,
-      category,
-      description,
-      unitCost: toNum(unitCost) ?? 0,
-      quantity: toNum(quantity) ?? 1,
-      entryDate,
-    });
-    setPending(false);
-    if (!r.ok) return toast.error(r.error ?? "Could not add.");
-    toast.success("Expense added");
-    setOpen(false);
-    setDescription("");
-    setUnitCost("");
-    setQuantity("1");
-  }
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -182,42 +156,7 @@ function AddExpenseDialog({ farmId, cropYear }: { farmId: string; cropYear: numb
         <DialogHeader>
           <DialogTitle>Add expense</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <CropSelect value={crop} onChange={setCrop} />
-            <div className="space-y-1">
-              <Label>Category</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {EXPENSE_CATEGORIES.map((c) => (
-                    <SelectItem key={c.key} value={c.key}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <TextField id="ae-desc" label="Brand / description" hint="optional" value={description} onChange={setDescription} placeholder="DeKalb DKC62-08" />
-          <div className="grid grid-cols-2 gap-3">
-            <MoneyField id="ae-unit" label="Cost per unit" unit="$" value={unitCost} onChange={setUnitCost} placeholder="100" />
-            <MoneyField id="ae-qty" label="Quantity" unit="×" value={quantity} onChange={setQuantity} placeholder="1" />
-          </div>
-          <TextField id="ae-date" label="Date" type="date" value={entryDate} onChange={setEntryDate} />
-          <div className="text-text-tertiary flex justify-between text-xs">
-            <span>Line total</span>
-            <span className="tnum text-foreground font-medium">${(Math.round(lineTotal * 100) / 100).toLocaleString()}</span>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button onClick={submit} disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            Add expense
-          </Button>
-        </DialogFooter>
+        <ExpenseForm farmId={farmId} cropYear={cropYear} onDone={() => setOpen(false)} idPrefix="in-exp" />
       </DialogContent>
     </Dialog>
   );
