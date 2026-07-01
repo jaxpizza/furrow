@@ -27,10 +27,3 @@ export type CropPulse = {
   read: OutlookV2 | null;
   readUpdatedLabel: string | null;
 };
-
-export type NewsView = {
-  link: string;
-  source: string;
-  title: string;
-  publishedLabel: string | null;
-};
