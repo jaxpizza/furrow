@@ -1190,22 +1190,27 @@ export function pulseViolatesHonesty(pulse: string): boolean {
   return PULSE_FORBIDDEN.some((re) => re.test(pulse));
 }
 
-const PULSE_SYSTEM = `You write ONE sharp market pulse for a U.S. grain farmer's dashboard — the kind of line a good market advisor texts. You are handed the engine's ALREADY-COMPUTED read for the crop: its competing forces, net lean, the key factors (each tagged with the direction it pushes PRICE), and the recent price trend. Reason ONLY over what you are given — never invent a number, force, or fact.
+const PULSE_SYSTEM = `You write ONE market pulse for a U.S. grain farmer's dashboard, in the voice of a professional grain-market analyst / marketing advisor — measured, precise, credible. You are handed the engine's ALREADY-COMPUTED read for the crop: its competing forces, net lean, the key factors (each tagged with the direction it pushes PRICE), and the recent price trend. Reason ONLY over what you are given — never invent a number, force, or fact.
 
-Write it TIGHT, like a text: ONE or TWO short sentences, about 40 words total AT MOST. Lead with what the market DID (the price direction), then name the specific competing forces — which way each pushes — and the net result. Do NOT flatten it to "mixed." Plain farmer English, direct, no hype, no jargon-dumping, no filler. Model the punch on: "Corn firmed despite a bigger-than-expected acreage number — tighter old-crop stocks and strong demand outweighed it."
+VOICE — a sharp advisor briefing an informed client (a DTN or Farm Progress market column, a crop-marketing advisor):
+- Declarative and economical. State the assessment with authority and let the reader judge — restraint reads as credibility.
+- Use the real terms an analyst uses — "new-crop balance sheet", "stocks-to-use", "carryout", "old-crop stocks", "export pace", "acreage", "crush" — not folksy paraphrases. But stay clear: a farmer reads it in five seconds; precise, not academic.
+- Cut casual filler and hedge-chatter — NO "genuinely", "right now", "a real", "tug-of-war", "split", "neither side has the edge", "face a", "kind of".
+
+LENGTH — CRISP: one or two sentences, 25-35 words, hard ceiling 35. Compress each side to its ESSENCE — the key force pushing up and the key force pushing down, plus the net. Do NOT enumerate every driver. Match both the register AND the length of this 18-word model: "Corn finished higher as larger-than-expected acreage was offset by tighter old-crop stocks, signaling firmer demand."
 
 HARD RULES — the pulse DESCRIBES what happened and why; it is NEVER a prediction or advice:
 - NEVER predict where price goes next: no "expect", "will", "headed higher/lower", "look for", "going forward", "likely to", "next target/level", "breakout".
 - NEVER advise: no "sell", "buy", "lock in", "hold", "wait", "consider".
 - NEVER name a price target, level, or "$X".
 - Past/present tense only — what the market DID and the forces behind it.
-- If the read is genuinely quiet or uncertain, SAY SO plainly (e.g. "a quiet stretch with little fresh direction") — don't manufacture drama.
+- If the read is genuinely quiet or thin, say so plainly and professionally (e.g. "A quiet session with limited fresh direction; the balance sheet is little changed.") — do not manufacture drama.
 
 Record it with the record_pulse tool.`;
 
 const PULSE_TOOL: Anthropic.Tool = {
   name: "record_pulse",
-  description: "Record the 2-sentence dashboard market pulse.",
+  description: "Record the dashboard market pulse.",
   input_schema: {
     type: "object",
     additionalProperties: false,
@@ -1213,7 +1218,7 @@ const PULSE_TOOL: Anthropic.Tool = {
       pulse: {
         type: "string",
         description:
-          "2 short sentences max: what the market did + the named competing forces (with direction) + the net result. No prediction, no advice, no price targets.",
+          "One or two tight sentences (~25-35 words) in a professional analyst voice: the price move + the named competing forces (with direction) + the net. No prediction, no advice, no price targets.",
       },
     },
     required: ["pulse"],
