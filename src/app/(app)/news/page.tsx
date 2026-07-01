@@ -11,8 +11,12 @@ export const metadata: Metadata = { title: "News & Events" };
 export const dynamic = "force-dynamic";
 
 export default async function NewsPage() {
-  const [articles, fetchedAt] = await Promise.all([getTaggedNews(40), newsLastFetched()]);
-  const events = await getEventsTimeline(articles);
+  // allSettled so a single failing source (tagging model, the calendar) degrades
+  // one section rather than blanking the whole page.
+  const [articlesR, fetchedR] = await Promise.allSettled([getTaggedNews(40), newsLastFetched()]);
+  const articles = articlesR.status === "fulfilled" ? articlesR.value : [];
+  const fetchedAt = fetchedR.status === "fulfilled" ? fetchedR.value : null;
+  const events = await getEventsTimeline(articles).catch(() => ({ upcoming: [], released: [], fetchedAt: null }));
 
   const sources = new Set(articles.map((a) => a.source)).size;
 

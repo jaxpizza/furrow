@@ -127,7 +127,7 @@ const TAG_TOOL: Anthropic.Tool = {
 async function tagBatch(items: NewsItem[]): Promise<ArticleTag[]> {
   if (items.length === 0 || !process.env.ANTHROPIC_API_KEY) return [];
   try {
-    const client = new Anthropic({ maxRetries: 3 });
+    const client = new Anthropic({ maxRetries: 3, timeout: 45_000 });
     const list = items
       .map((n, i) => `[${i}] (${n.source}) ${n.title}${n.summary ? ` — ${n.summary.slice(0, 280)}` : ""}`)
       .join("\n");

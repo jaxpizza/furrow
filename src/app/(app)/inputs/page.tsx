@@ -39,13 +39,22 @@ export default async function InputsPage() {
   const cropYear = currentCropYear();
 
   const supabase = await createClient();
-  const [exp, harv, sal, locs, set] = await Promise.all([
+  // allSettled so an unexpected error on one query degrades to an empty ledger
+  // rather than crashing the whole page.
+  const [expR, harvR, salR, locsR, setR] = await Promise.allSettled([
     supabase.from("expense_entries").select("*").eq("farm_id", farmId).eq("crop_year", cropYear).order("entry_date", { ascending: false }),
     supabase.from("harvest_entries").select("*").eq("farm_id", farmId).eq("crop_year", cropYear).order("entry_date", { ascending: false }),
     supabase.from("sale_entries").select("*").eq("farm_id", farmId).eq("crop_year", cropYear).order("entry_date", { ascending: false }),
     supabase.from("storage_locations").select("*").eq("farm_id", farmId).order("created_at"),
     supabase.from("crop_year_settings").select("crop, acres, expected_yield").eq("farm_id", farmId).eq("crop_year", cropYear),
   ]);
+  const settled = <T,>(r: PromiseSettledResult<{ data: T | null }>): { data: T | null } =>
+    r.status === "fulfilled" ? r.value : { data: null };
+  const exp = settled(expR);
+  const harv = settled(harvR);
+  const sal = settled(salR);
+  const locs = settled(locsR);
+  const set = settled(setR);
 
   const expenses: ExpenseEntry[] = (exp.data ?? []).map((e) => ({
     id: e.id, crop: e.crop, category: e.category, description: e.description,

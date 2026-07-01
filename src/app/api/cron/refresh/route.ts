@@ -30,6 +30,9 @@ async function handle(req: Request): Promise<Response> {
     if (auth !== `Bearer ${secret}`) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
+  } else if (process.env.NODE_ENV === "production") {
+    // Fail SAFE: a missing secret in production must refuse, never run open.
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 503 });
   }
 
   const now = new Date();

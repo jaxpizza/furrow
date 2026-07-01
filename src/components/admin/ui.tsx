@@ -64,10 +64,3 @@ export function YesNo({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
-export function AdminBadge() {
-  return (
-    <span className="rounded bg-[var(--accent,#d97706)]/15 px-1.5 py-0.5 text-[10px] uppercase text-[var(--accent,#d97706)]">
-      admin
-    </span>
-  );
-}

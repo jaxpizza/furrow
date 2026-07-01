@@ -20,11 +20,13 @@ Running list of known, deliberately-deferred items to resolve **before launch**.
 ### From the pre-terminal robustness audit (2026-06-28)
 - **PL-3 · September pace-vs-target marketing-year seam.** `exportMarketingYear()` flips on Sep 1 but the WASDE target lookup prefers the "Est." (prior-year) value; for ~1–2 weeks each September a new-MY cumulative export total could be divided by the *old*-MY target, skewing the pace %. Seasonal, not active now. *Fix:* match the WASDE target to the same MY string FAS was queried for. (`src/lib/outlook/providers/usda-demand.ts`.) *(Robustness audit flag E.)*
 - **PL-4 · Sources page technicals section shows no age.** Cosmetic honesty gap on the internal `/markets/sources` page — the Technicals section lacks the `fmtAgo` "updated N ago" line every peer section shows. Low priority. *(Robustness audit flag F.)*
-- **PL-5 · Anthropic SDK 529 retry + request timeout.** Confirm the installed `@anthropic-ai/sdk` classifies HTTP **529 (overloaded)** as retryable under `maxRetries: 4` (historically 408/409/429/≥500 are retried; 529 is non-standard), and add an explicit per-request timeout so a hung model call can't stall a page render. If 529 isn't retried, the first overload falls straight to the graceful-degradation path. (`src/lib/outlook/synthesis.ts` `generate()`.) *(Robustness audit flag G.)*
 
 ---
 
 ## Resolved
+*(Production-readiness pass — 2026-07-01:)*
+- **PL-5 · Anthropic request timeout** — added an explicit `timeout` to both Anthropic clients (60s synthesis, 45s news tagging) so a hung model call can't stall an SSR render; on timeout/overload the read falls to the graceful last-good/null path. (529-retry is best-effort in the SDK — graceful degradation covers an overload either way.)
+
 *(Robustness audit flags A–D were fixed in-line and are recorded in their commits:)*
 - Partial-bucket disclosure (flag A) — `951e92a`; keep-last-good extension — `40f5c3d`, `7774367`.
 - TTL-skip-on-partial self-heal (flag B) — `e07893f`.

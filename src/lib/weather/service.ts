@@ -44,11 +44,17 @@ export async function getWeatherDashboard(
   const { lat, lon } = location;
   const key = cellKey(lat, lon);
 
-  const [forecast, actuals, normals] = await Promise.all([
+  // allSettled so one failing Open-Meteo call (forecast/actuals/normals) degrades
+  // to a partial dashboard (the `degraded` flag + null-guards below) rather than
+  // throwing out of the whole weather load.
+  const [fR, aR, nR] = await Promise.allSettled([
     getForecast(lat, lon, key),
     getActuals(lat, lon, key, now),
     getNormals(lat, lon, key),
   ]);
+  const forecast = fR.status === "fulfilled" ? fR.value : null;
+  const actuals = aR.status === "fulfilled" ? aR.value : null;
+  const normals = nR.status === "fulfilled" ? nR.value : null;
 
   // Open-Meteo returns timestamps in the location's LOCAL time (timezone=auto),
   // so align "now" to that local clock — otherwise the hourly strip and the

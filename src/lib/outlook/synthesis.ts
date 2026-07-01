@@ -977,7 +977,10 @@ async function generate(
   now: Date,
 ): Promise<OutlookV2 | null> {
   try {
-    const client = new Anthropic({ maxRetries: 4 });
+    // Explicit per-request timeout so a hung model call can't stall a page render
+    // (the SDK default is 10 min). On timeout/overload the outlook falls to the
+    // graceful last-good / null path rather than blocking SSR indefinitely.
+    const client = new Anthropic({ maxRetries: 4, timeout: 60_000 });
     const resp = await client.messages.create({
       model: OUTLOOK_MODEL,
       max_tokens: 2800,
