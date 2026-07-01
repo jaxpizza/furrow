@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { TerminalChrome } from "@/components/terminal/terminal-chrome";
-import { Glance } from "@/components/terminal/glance";
 import { Deep } from "@/components/terminal/deep";
 import { freshnessLabel } from "@/components/terminal/lib";
 import { getBreakevenTarget } from "@/lib/alerts/queries";
@@ -34,7 +33,7 @@ export const maxDuration = 60;
 export default async function TerminalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ crop?: string; mode?: string }>;
+  searchParams: Promise<{ crop?: string }>;
 }) {
   const { user, farms } = await getSessionContext();
   if (!user) redirect("/sign-in");
@@ -46,7 +45,6 @@ export default async function TerminalPage({
 
   const sp = await searchParams;
   const crop: Crop = sp.crop === "soybean" ? "soybean" : "corn";
-  const mode = sp.mode === "deep" ? "deep" : "glance";
   const symbol = CROP_TO_SYMBOL[crop];
   const now = new Date();
 
@@ -134,14 +132,13 @@ export default async function TerminalPage({
   return (
     <TerminalChrome
       crop={crop}
-      initialMode={mode}
       updatedLabel={
         outlook?.generatedAt ? freshnessLabel(outlook.generatedAt, now.getTime()) : null
       }
       freshness={outlook?.freshness ?? null}
       sampleData={Boolean(outlook?.sampleData || data.priceSample)}
-      glance={<Glance data={data} />}
-      deep={<Deep data={data} />}
-    />
+    >
+      <Deep data={data} />
+    </TerminalChrome>
   );
 }

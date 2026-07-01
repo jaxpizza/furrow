@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, ExternalLink, Minus } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CalendarClock, ExternalLink, Minus } from "lucide-react";
 
 import { Explainer } from "@/components/common/explainer";
 import { SignalBadge } from "@/components/common/signal-badge";
@@ -23,7 +23,7 @@ import {
   type BucketKey,
   type Lean,
 } from "./lib";
-import type { TerminalData } from "./types";
+import type { NextMover, TerminalData } from "./types";
 
 const DIR_ICON = { up: ArrowUpRight, down: ArrowDownRight, neutral: Minus };
 const DIR_CLS = {
@@ -144,6 +144,35 @@ function FullRead({ data }: { data: TerminalData }) {
   );
 }
 
+function countdown(d: number): string {
+  if (d <= 0) return "today";
+  if (d === 1) return "tomorrow";
+  return `in ${d} days`;
+}
+
+/** The next scheduled market-mover on the USDA calendar — a forward-looking
+ *  closer so the farmer sees what's coming while they're deep in the read. */
+function NextMoverStrip({ mover }: { mover: NextMover | null }) {
+  return (
+    <div className="border-border bg-bg-surface/40 flex items-center gap-3 rounded-lg border px-4 py-3">
+      <CalendarClock className="text-[var(--accent)] size-4 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="text-text-tertiary text-[11px] font-medium tracking-wide uppercase">
+          Next market-mover
+        </div>
+        <div className="truncate text-sm">
+          {mover ? mover.description : "No scheduled USDA report on the calendar."}
+        </div>
+      </div>
+      {mover && (
+        <span className="tnum text-[var(--accent)] shrink-0 text-sm font-semibold">
+          {countdown(mover.daysUntil)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /** DEEP — the full trading terminal. Information-rich but organized: the price
  *  chart with engine levels, the personal cash-vs-break-even chart, the full
  *  sourced read, and the six buckets each expandable into framed detail. */
@@ -244,6 +273,9 @@ export function Deep({ data }: { data: TerminalData }) {
           );
         })}
       </section>
+
+      {/* ── NEXT MARKET-MOVER ────────────────────────────────────── */}
+      <NextMoverStrip mover={data.nextMover} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import type { Crop } from "@/lib/types/database";
 
 /** The six engine buckets, in a fixed display order, with their stable keys
- *  (used as scroll/jump anchors between glance and deep). */
+ *  (also used as element ids / scroll anchors for each bucket section). */
 export const BUCKET_ORDER = [
   "supply",
   "demand",
