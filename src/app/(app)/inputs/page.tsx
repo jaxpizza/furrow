@@ -8,6 +8,7 @@ import { ExpenseLedger } from "@/components/inputs/expense-ledger";
 import { HarvestLedger } from "@/components/inputs/harvest-ledger";
 import { PositionSummary } from "@/components/inputs/position-summary";
 import { SaleLedger } from "@/components/inputs/sale-ledger";
+import { SpendingSummary } from "@/components/inputs/spending-summary";
 import { StorageManager } from "@/components/inputs/storage-manager";
 import { ACTIVE_FARM_COOKIE } from "@/lib/constants";
 import { getSessionContext } from "@/lib/farm";
@@ -17,6 +18,7 @@ import {
   CROPS,
   currentCropYear,
   ledgerBreakeven,
+  spendingByCategory,
   type ExpenseEntry,
   type HarvestEntry,
   type SaleEntry,
@@ -113,6 +115,10 @@ export default async function InputsPage() {
     };
   });
 
+  // Visual spending summary — whole-operation total + category breakdown, over
+  // the SAME summed expense data the break-even uses (no new storage / math).
+  const spend = spendingByCategory(expenses);
+
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader
@@ -124,7 +130,10 @@ export default async function InputsPage() {
         {/* 1 · THE ANSWER — your break-even + what it's for */}
         <BreakevenHeadline items={breakevenItems} />
 
-        {/* 2 · THE INPUTS that produce it — your costs + expected yield */}
+        {/* 2 · WHERE THE MONEY WENT — total + category breakdown */}
+        <SpendingSummary total={spend.total} count={spend.count} cropYear={cropYear} rows={spend.rows} />
+
+        {/* 3 · THE INPUTS that produce it — your costs + expected yield */}
         <ExpenseLedger farmId={farmId} cropYear={cropYear} expenses={expenses} settingsByCrop={settingsByCrop} />
 
         {/* 3 · Where you stand + the grain ledgers */}

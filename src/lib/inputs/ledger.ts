@@ -80,6 +80,40 @@ export function expenseTotals(entries: ExpenseEntry[]) {
   return { byCategory, total: Math.round(total * 100) / 100 };
 }
 
+export type SpendCategory = { key: string; label: string; amount: number; pct: number };
+
+/** Expenses grouped by category for the visual spending summary: largest-first,
+ *  empty categories omitted, and integer percents of the total that sum to
+ *  EXACTLY 100 (largest-remainder rounding, so the bars never total 99 or 101).
+ *  A presentation layer over the same summed data the break-even uses. */
+export function spendingByCategory(entries: ExpenseEntry[]): {
+  total: number;
+  count: number;
+  rows: SpendCategory[];
+} {
+  const { byCategory, total } = expenseTotals(entries);
+  const rows: SpendCategory[] = Object.entries(byCategory)
+    .filter(([, amount]) => amount > 0)
+    .map(([key, amount]) => ({ key, label: CATEGORY_LABEL[key] ?? key, amount, pct: 0 }))
+    .sort((a, b) => b.amount - a.amount);
+
+  if (total > 0 && rows.length > 0) {
+    const exact = rows.map((r) => (r.amount / total) * 100);
+    const floors = exact.map((x) => Math.floor(x));
+    let leftover = 100 - floors.reduce((s, f) => s + f, 0);
+    // Hand the leftover whole points to the largest fractional remainders.
+    const byRemainder = exact
+      .map((x, i) => ({ i, frac: x - Math.floor(x) }))
+      .sort((a, b) => b.frac - a.frac);
+    const bumped = new Set<number>();
+    for (let k = 0; k < byRemainder.length && leftover > 0; k++, leftover--) {
+      bumped.add(byRemainder[k].i);
+    }
+    rows.forEach((r, i) => (r.pct = floors[i] + (bumped.has(i) ? 1 : 0)));
+  }
+  return { total, count: entries.length, rows };
+}
+
 /** Break-even from the logged expenses: total ÷ (acres × yield). Returns the
  *  cost_per_acre and the per-bushel effective break-even (what flows to
  *  breakeven_targets, and what markets/terminal/alerts already read). */
