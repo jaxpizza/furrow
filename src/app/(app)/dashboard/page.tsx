@@ -153,7 +153,7 @@ export default async function DashboardPage() {
     soonest && soonest.daysUntil <= 7 ? { description: soonest.description, daysUntil: soonest.daysUntil } : null;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-6xl">
       <PageHeader title="Dashboard" subtitle="Where the market is and where you stand — at a glance." />
 
       <div className="space-y-6">
