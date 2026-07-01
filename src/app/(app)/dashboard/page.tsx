@@ -4,9 +4,9 @@ import { redirect } from "next/navigation";
 import type { Polygon } from "geojson";
 
 import { PageHeader } from "@/components/common/page-header";
-import { BreakevenStatus } from "@/components/dashboard/breakeven-status";
 import { MarketReadPulse } from "@/components/dashboard/market-read-pulse";
 import { NewsFeed } from "@/components/dashboard/news-feed";
+import { NextMover, type NextMoverInfo } from "@/components/dashboard/next-mover";
 import { PricePulseCard } from "@/components/dashboard/price-pulse-card";
 import { WeatherSnapshot } from "@/components/dashboard/weather-snapshot";
 import { HoldingsSummary, type CropHolding } from "@/components/dashboard/holdings-summary";
@@ -21,6 +21,8 @@ import { getSessionContext } from "@/lib/farm";
 import { cashProvider } from "@/lib/markets/manual-basis";
 import { deltaFromHistory, getFuturesHistory } from "@/lib/markets/service";
 import { CROP_LABEL, CROP_TO_SYMBOL } from "@/lib/markets/symbols";
+import { readLatestEconBundles, readReportCalendar } from "@/lib/outlook/econ-cache";
+import { upcomingReports } from "@/lib/outlook/econ-ingest";
 import { readLatestOutlookV2, readNewsItems } from "@/lib/outlook/cache";
 import type { OutlookV2 } from "@/lib/outlook/synthesis";
 import { getTechnicalsSnapshot } from "@/lib/outlook/technicals-ingest";
@@ -69,7 +71,7 @@ export default async function DashboardPage() {
   // market read is READ-ONLY (readLatestOutlookV2) — the home shows the latest
   // computed read instantly and never triggers a generation. allSettled means a
   // single failing source degrades one card, never the page.
-  const [cornHist, soyHist, cornCash, soyCash, cornTgt, soyTgt, techR, cornRead, soyRead, newsR, weatherR, holdingsR] =
+  const [cornHist, soyHist, cornCash, soyCash, cornTgt, soyTgt, techR, cornRead, soyRead, newsR, weatherR, holdingsR, calR, bundR] =
     await Promise.allSettled([
       getFuturesHistory(CROP_TO_SYMBOL.corn, now),
       getFuturesHistory(CROP_TO_SYMBOL.soybean, now),
@@ -83,10 +85,19 @@ export default async function DashboardPage() {
       readNewsItems(8),
       loadWeather(farmId, now),
       getHoldings(farmId, currentCropYear()),
+      readReportCalendar(),
+      readLatestEconBundles(),
     ]);
 
   const ok = <T,>(r: PromiseSettledResult<T>, fb: T): T => (r.status === "fulfilled" ? r.value : fb);
   const tech = ok(techR, { bundles: [], basedOnSample: false });
+
+  // Soonest scheduled market-mover — read-only from the report calendar (the same
+  // release-aware upcomingReports the events tracker uses); never refreshes here.
+  const upcoming = upcomingReports(ok(calR, []), now, ok(bundR, []));
+  const nextMover: NextMoverInfo = upcoming[0]
+    ? { description: upcoming[0].description, daysUntil: upcoming[0].daysUntil }
+    : null;
 
   const histByCrop = { corn: ok(cornHist, null), soybean: ok(soyHist, null) };
   const cashByCrop = { corn: ok(cornCash, null), soybean: ok(soyCash, null) };
@@ -188,29 +199,13 @@ export default async function DashboardPage() {
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Dashboard"
-        subtitle="Your farm's markets, weather, and the read — at a glance."
+        subtitle="Where the market is, where you stand, and what's coming — at a glance."
       />
 
       <div className="space-y-6">
-        {/* ── HOLDINGS ─────────────────────────────────────────────── */}
-        <HoldingsSummary holdings={cropHoldings} />
-
-        {/* ── YOUR POSITION VS THE MARKET ──────────────────────────── */}
-        <PositionVsMarketCompact items={fusions} />
-
-        {/* ── PRICE PULSE ──────────────────────────────────────────── */}
+        {/* ── 1 · THE MARKET READ — the anchor, the #1 thing he came for ── */}
         <section className="space-y-2">
-          <SectionLabel>Price pulse</SectionLabel>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {pulses.map((p) => (
-              <PricePulseCard key={p.crop} pulse={p} nowMs={nowMs} />
-            ))}
-          </div>
-        </section>
-
-        {/* ── MARKET READ ──────────────────────────────────────────── */}
-        <section className="space-y-2">
-          <SectionLabel>Market read</SectionLabel>
+          <SectionLabel>The market read · where the market is</SectionLabel>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {pulses.map((p) => (
               <MarketReadPulse key={p.crop} pulse={p} />
@@ -218,27 +213,39 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        {/* ── BREAK-EVEN + WEATHER ─────────────────────────────────── */}
-        {/* items-start so each section sizes to its content: the cards use
-            h-full, which would otherwise stretch to the grid row height and,
-            with the label above them, overflow ~one label-height into the news
-            section below. */}
+        {/* ── 2 · YOUR POSITION VS THE MARKET — where you stand ──────── */}
+        <PositionVsMarketCompact items={fusions} />
+
+        {/* ── 3 · HOLDINGS VALUE + PRICE PULSE — what your grain's worth ─ */}
+        <HoldingsSummary holdings={cropHoldings} />
+        <section className="space-y-2">
+          <SectionLabel>Price pulse · the trend</SectionLabel>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {pulses.map((p) => (
+              <PricePulseCard key={p.crop} pulse={p} nowMs={nowMs} />
+            ))}
+          </div>
+        </section>
+
+        {/* ── 4 · WHAT'S COMING — is anything about to move it ──────── */}
+        <section className="space-y-2">
+          <SectionLabel>What&apos;s coming · next market-mover</SectionLabel>
+          <NextMover mover={nextMover} />
+        </section>
+
+        {/* ── 5 · SUPPORTING CONTEXT — nice to know, goes last ──────── */}
+        {/* items-start so each section sizes to its content and can't overflow
+            into the next. */}
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-          <section className="space-y-2">
-            <SectionLabel>Break-even status</SectionLabel>
-            <BreakevenStatus pulses={pulses} />
-          </section>
           <section className="space-y-2">
             <SectionLabel>Weather</SectionLabel>
             <WeatherSnapshot weather={weather} nowMs={nowMs} />
           </section>
+          <section className="space-y-2">
+            <SectionLabel>Today&apos;s ag news</SectionLabel>
+            <NewsFeed news={news} />
+          </section>
         </div>
-
-        {/* ── NEWS ─────────────────────────────────────────────────── */}
-        <section className="space-y-2">
-          <SectionLabel>Today&apos;s ag news</SectionLabel>
-          <NewsFeed news={news} />
-        </section>
       </div>
     </div>
   );
