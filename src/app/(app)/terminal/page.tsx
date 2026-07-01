@@ -27,8 +27,9 @@ import type { Crop } from "@/lib/types/database";
 export const metadata: Metadata = { title: "Terminal" };
 export const dynamic = "force-dynamic";
 // Renders from the cached read instantly; maxDuration only covers the background
-// `after()` regen that self-heals a stale cache.
-export const maxDuration = 90;
+// `after()` regen that self-heals a stale cache. Capped at 60 (Vercel Hobby max —
+// >60 fails the deploy); a single-crop regen fits. Raise on Pro for headroom.
+export const maxDuration = 60;
 
 export default async function TerminalPage({
   searchParams,

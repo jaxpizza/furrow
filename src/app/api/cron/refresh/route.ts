@@ -18,8 +18,10 @@ import type { Crop } from "@/lib/types/database";
 // same convention as /api/alerts/evaluate.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// Two crops, each up to one ~45s synthesis when the corpus changed.
-export const maxDuration = 300;
+// Two crops, each up to one ~45s synthesis when the corpus changed. Capped at 60
+// (Vercel Hobby max — >60 fails the deploy), so a two-crop regen may not finish in
+// one call; it's best-effort and self-heals across calls. Raise to 300 on Pro.
+export const maxDuration = 60;
 
 const CROPS: Crop[] = ["corn", "soybean"];
 

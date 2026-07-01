@@ -36,8 +36,9 @@ import type { Crop } from "@/lib/types/database";
 export const metadata: Metadata = { title: "Markets" };
 export const dynamic = "force-dynamic";
 // The page renders from the cached read instantly; maxDuration only covers the
-// background `after()` regen that self-heals a stale cache.
-export const maxDuration = 90;
+// background `after()` regen that self-heals a stale cache. Capped at 60 (Vercel
+// Hobby max — >60 fails the deploy); a single-crop regen fits. Raise on Pro.
+export const maxDuration = 60;
 
 export default async function MarketsPage({
   searchParams,
