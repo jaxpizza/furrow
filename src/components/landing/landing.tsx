@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CloudSun, LineChart, Sprout, Wallet } from "lucide-react";
 
-import { MarketReadCard } from "./market-read-card";
+import { ModeShowcase } from "./mode-showcase";
 import { Reveal, RevealGroup, RevealItem } from "./motion";
 
 export function Landing() {
@@ -12,6 +12,7 @@ export function Landing() {
     <div className="relative min-h-dvh overflow-x-hidden bg-background text-foreground">
       <Nav />
       <Hero />
+      <Sourced />
       <Tension />
       <Features />
       <Honesty />
@@ -74,54 +75,55 @@ function Hero() {
   return (
     <section className="relative isolate">
       <Atmosphere />
-      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 pt-32 pb-20 sm:pt-40 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8 lg:pt-44 lg:pb-28">
-        {/* left — the message */}
-        <div>
-          <RevealGroup>
-            <RevealItem>
-              <span className="text-text-secondary inline-flex items-center gap-2 rounded-full border border-border/70 bg-[var(--bg-surface)]/60 px-3 py-1 font-mono text-[11px] tracking-wide uppercase">
-                <span className="size-1.5 rounded-full bg-[var(--pos)]" />
-                For corn &amp; soybean farmers
-              </span>
-            </RevealItem>
-            <RevealItem>
-              <h1 className="font-serif mt-6 text-[clamp(2.6rem,7vw,4.6rem)] leading-[0.98] font-medium tracking-[-0.02em]">
-                Know where the market stands.
-                <br />
-                And where <em className="text-[var(--accent)] italic">you</em> stand.
-              </h1>
-            </RevealItem>
-            <RevealItem>
-              <p className="text-text-secondary mt-6 max-w-lg text-lg leading-relaxed">
-                An honest read on the corn &amp; soybean markets, tied to your own break-even. Built for Corn Belt
-                farmers — no hype, no price predictions, no one telling you what to do.
-              </p>
-            </RevealItem>
-            <RevealItem>
-              <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Link
-                  href="/sign-up"
-                  className="group inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3 text-base font-semibold text-[#1b1403] shadow-lg shadow-[var(--accent)]/10 transition-transform hover:scale-[1.03] active:scale-95"
-                >
-                  Get started free
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-                </Link>
-                <Link href="/sign-in" className="text-text-secondary hover:text-foreground px-3 py-3 text-base font-medium transition-colors">
-                  Log in
-                </Link>
-              </div>
-            </RevealItem>
-            <RevealItem>
-              <p className="text-text-tertiary mt-6 font-mono text-[11px] tracking-wide">
-                Free to start · Corn &amp; soybeans · Central Illinois &amp; the Corn Belt
-              </p>
-            </RevealItem>
-          </RevealGroup>
+      {/* Above-the-fold: content renders immediately (visible without JS). A single
+          compositor-driven CSS fade-in — NOT scroll/JS-gated framer reveals, which
+          stalled in production and left the hero blank. */}
+      <div className="animate-in fade-in duration-500 mx-auto flex max-w-6xl flex-col gap-9 px-5 pt-28 pb-20 sm:pt-36 lg:grid lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:gap-x-10 lg:gap-y-6 lg:pt-40 lg:pb-28">
+        {/* intro — headline + the two-mode promise (mobile: above the showcase) */}
+        <div className="order-1 lg:col-start-1 lg:row-start-1">
+          <span className="text-text-secondary inline-flex items-center gap-2 rounded-full border border-border/70 bg-[var(--bg-surface)]/60 px-3 py-1 font-mono text-[11px] tracking-wide uppercase">
+            <span className="size-1.5 rounded-full bg-[var(--pos)]" />
+            For corn &amp; soybean farmers
+          </span>
+          <h1 className="font-serif mt-6 text-[clamp(2.5rem,6.4vw,4.3rem)] leading-[0.98] font-medium tracking-[-0.02em]">
+            Know where the market stands.
+            <br />
+            And where <em className="text-[var(--accent)] italic">you</em> stand.
+          </h1>
+          <p className="mt-6 max-w-lg text-[1.35rem] leading-snug font-medium tracking-[-0.01em]">
+            Simple by default.{" "}
+            <span className="text-text-secondary">Powerful when you want it.</span>{" "}
+            <span className="text-[var(--accent)]">Honest either way.</span>
+          </p>
         </div>
 
-        {/* right — the living card */}
-        <div className="flex justify-center lg:justify-end">
-          <MarketReadCard />
+        {/* the interactive Simple ⇄ Detailed showcase — the hero's magic moment.
+            Mobile: right after the promise. Desktop: right column, spanning. */}
+        <div className="order-2 flex justify-center lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:justify-end lg:self-center">
+          <ModeShowcase />
+        </div>
+
+        {/* pitch — the explanation + CTAs (mobile: below the showcase) */}
+        <div className="order-3 lg:col-start-1 lg:row-start-2">
+          <p className="text-text-secondary max-w-lg text-[16px] leading-relaxed">
+            One honest market read — shown plainly for the farmer who just wants to know, or in full depth when you want
+            the whole picture. Same engine. No hype, no price predictions.
+          </p>
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            <Link
+              href="/sign-up"
+              className="group inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3 text-base font-semibold text-[#1b1403] shadow-lg shadow-[var(--accent)]/10 transition-transform hover:scale-[1.03] active:scale-95"
+            >
+              Get started free
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <Link href="/sign-in" className="text-text-secondary hover:text-foreground px-3 py-3 text-base font-medium transition-colors">
+              Log in
+            </Link>
+          </div>
+          <p className="text-text-tertiary mt-6 font-mono text-[11px] tracking-wide">
+            Free to start · Corn &amp; soybeans · Central Illinois &amp; the Corn Belt
+          </p>
         </div>
       </div>
     </section>
@@ -158,6 +160,98 @@ function Atmosphere() {
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
     <span className="text-[var(--accent)] font-mono text-[11px] font-medium tracking-[0.16em] uppercase">{children}</span>
+  );
+}
+
+/* ── Real data, real sources (the trust band) ───────────────────────────────────
+ * Names the ACTUAL agencies feeding the engine — verified against the ingest code
+ * (src/lib/outlook/providers/*). The closing line is the exact NASS attribution
+ * the app is required to show. No source is inflated or invented. */
+const SOURCES = [
+  {
+    tag: "USDA NASS",
+    name: "National Agricultural Statistics Service",
+    detail: "Crop conditions, grain stocks, acreage & yield — and the WASDE balance sheet the whole market trades.",
+    feeds: "Supply · Conditions",
+  },
+  {
+    tag: "USDA FAS",
+    name: "Foreign Agricultural Service",
+    detail: "Weekly export sales, with China's share broken out.",
+    feeds: "Demand",
+  },
+  {
+    tag: "EIA",
+    name: "U.S. Energy Information Administration",
+    detail: "Weekly ethanol production — the corn grind that drives a big slice of demand.",
+    feeds: "Demand",
+  },
+  {
+    tag: "CFTC",
+    name: "Commitment of Traders",
+    detail: "Where managed money is positioned — net long or short, against 25 years of history.",
+    feeds: "Money flow",
+  },
+  {
+    tag: "Ag news desk",
+    name: "farmdoc · Brownfield · Farm Progress & more",
+    detail: "The headlines that actually move grain — filtered out of the daily noise.",
+    feeds: "Conditions",
+  },
+  {
+    tag: "Market data",
+    name: "Front-month futures & local cash basis",
+    detail: "Today's bid, measured against your break-even — plus the dollar, crude, and Corn-Belt weather.",
+    feeds: "Technicals · Macro",
+  },
+];
+
+function Sourced() {
+  return (
+    <section className="relative border-t border-border/50 py-24 sm:py-32">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{ background: "radial-gradient(55% 45% at 50% 0%, color-mix(in oklab, var(--accent) 6%, transparent), transparent 70%)" }}
+      />
+      <div className="mx-auto max-w-6xl px-5">
+        <Reveal>
+          <Eyebrow>Sourced, not guessed</Eyebrow>
+          <h2 className="font-serif mt-4 max-w-2xl text-[clamp(1.9rem,4.2vw,2.9rem)] leading-[1.05] font-medium tracking-[-0.01em]">
+            Real numbers from the agencies that set the market.
+          </h2>
+          <p className="text-text-secondary mt-5 max-w-2xl text-[17px] leading-relaxed">
+            Every one of the six buckets —{" "}
+            <span className="text-foreground">Supply, Demand, Money flow, Macro, Technicals, and Conditions</span> — is
+            built on real, published data. No hype, no made-up numbers, no price predictions. Every read traces back to
+            its source.
+          </p>
+        </Reveal>
+
+        <RevealGroup className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" delay={0.05}>
+          {SOURCES.map((s) => (
+            <RevealItem key={s.tag}>
+              <div className="h-full rounded-xl border border-border/70 bg-[var(--bg-surface)]/50 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="font-mono text-[13px] font-semibold tracking-wide text-[var(--accent)]">{s.tag}</span>
+                  <span className="text-text-tertiary shrink-0 rounded-full border border-border/60 px-2 py-0.5 font-mono text-[9px] tracking-wide uppercase">
+                    {s.feeds}
+                  </span>
+                </div>
+                <div className="text-text-secondary mt-2 text-[12px] font-medium">{s.name}</div>
+                <p className="text-text-tertiary mt-2 text-[14px] leading-relaxed">{s.detail}</p>
+              </div>
+            </RevealItem>
+          ))}
+        </RevealGroup>
+
+        <Reveal delay={0.1}>
+          <p className="text-text-tertiary mt-8 max-w-2xl font-mono text-[11px] leading-relaxed tracking-wide">
+            This product uses the USDA NASS API but is not endorsed or certified by NASS.
+          </p>
+        </Reveal>
+      </div>
+    </section>
   );
 }
 
