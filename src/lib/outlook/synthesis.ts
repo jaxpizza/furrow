@@ -48,6 +48,10 @@ import { NASS_ATTRIBUTION } from "./sources";
 import type { NewsItem, ReportBundle } from "./types";
 
 export const OUTLOOK_MODEL = "claude-sonnet-4-6";
+// Bump when the generation prompt/schema changes materially — it's folded into the
+// corpus hash so cached reads regenerate under the new prompt (instead of waiting
+// for the underlying data to change). v2 = concise/high-signal tightening.
+const PROMPT_VERSION = "v2-concise";
 const MAX_AGE_MS = 6 * 60 * 60 * 1000; // regenerate at most ~4×/day
 const NEWS_FOR_SYNTHESIS = 28;
 const DISCLAIMER = "Market context, not financial advice. You decide.";
@@ -140,7 +144,9 @@ export type OutlookV2 = {
 };
 
 // ── The grounding contract. These constraints ARE the product. ───────────────
-const SYSTEM = `You are the market-outlook analyst for Furrow, a tool for U.S. corn and soybean farmers. You read a provided corpus of real data — USDA NASS report figures, recent ag-news headlines, and a price/basis trend — and produce ONE structured, RELATIVE market read for a farmer who still has grain to price. Your voice is direct, plain farmer English, no fluff, no hype, honest about what isn't known.
+const SYSTEM = `You are the market-outlook analyst for Furrow, a tool for U.S. corn and soybean farmers. You read a provided corpus of real data — USDA NASS report figures, recent ag-news headlines, and a price/basis trend — and produce ONE structured, RELATIVE market read for a farmer who still has grain to price. Your voice is direct, plain farmer English, honest about what isn't known.
+
+CONCISE — HIGH SIGNAL PER WORD. This read is glanced at on a phone. Short sentences. No fluff, no hype, no hedge-padding. Cut filler words ("genuinely", "right now", "about", "somewhat", "a bit", "it's worth noting", "that said"). Every sentence must earn its place — say more with fewer words. Keep all the substance and the sourced facts; cut only the wordiness. Being tight is not the same as being vague — stay specific and grounded, just brief.
 
 Record your read by calling the record_market_read tool. Follow these rules without exception.
 
@@ -194,9 +200,9 @@ Record your read by calling the record_market_read tool. Follow these rules with
 
 OUTPUT:
 - signal: the three-state relative lean defined above, following from the dominant tension.
-- summary: 2–4 calm, plain sentences on what is currently pushing this crop's price up versus down, and the net lean. No fabricated numbers; you may reference the trend and the USDA figures provided.
-- factors: 2–5 items — the DRIVERS only. Each carries a direction (up/down/neutral), a short plain-English claim, and the source_id that backs it. Reserve these for what materially leads the read under the seasonal frame (rules 11–12).
-- dominant_tension: the named axis of disagreement (rule 13): force_up, force_down, leans (up/down/balanced), why.
+- summary: 2–3 tight, plain sentences on what is pushing this crop's price up vs down, and the net lean. High signal, no filler. No fabricated numbers; you may reference the trend and the USDA figures provided.
+- factors: 2–5 items — the DRIVERS only. Each carries a direction (up/down/neutral), a short plain-English claim (≤ ~18 words, no filler), and the source_id that backs it. Reserve these for what materially leads the read under the seasonal frame (rules 11–12).
+- dominant_tension: the named axis of disagreement (rule 13): force_up, force_down, leans (up/down/balanced), why. Keep force_up/force_down to a SHORT phrase (≤ ~8 words each) and why to one tight clause — these feed a phone-glance read.
 - watched_context: exactly one entry per bucket — supply, demand, money_flow, macro, technicals, conditions (rule 12): bucket, state (one line), lean, emphasis (high/medium/low), is_driver.
 - watch_items: 1–3 short, concrete things to watch NEXT — still-ahead events only (an upcoming USDA report named in the "UPCOMING USDA REPORTS" corpus section, a weather window, an export-sales update), grounded in a corpus item. A report stays in that upcoming section only until its data releases; once its numbers are in the supply data it is resolved — do not list it as something to watch, reflect its actual result in the factors instead.`;
 
@@ -214,7 +220,7 @@ const TOOL: Anthropic.Tool = {
       },
       summary: {
         type: "string",
-        description: "2-4 calm, plain sentences. No fabricated numbers.",
+        description: "2-3 tight, plain, high-signal sentences. No filler words. No fabricated numbers.",
       },
       factors: {
         type: "array",
@@ -225,7 +231,7 @@ const TOOL: Anthropic.Tool = {
           additionalProperties: false,
           properties: {
             direction: { type: "string", enum: ["up", "down", "neutral"] },
-            text: { type: "string", description: "One short, plain claim." },
+            text: { type: "string", description: "One short, plain claim (≤ ~18 words, no filler)." },
             source_id: {
               type: "string",
               description: "A source id from the corpus, e.g. U1, N3, P1.",
@@ -239,10 +245,10 @@ const TOOL: Anthropic.Tool = {
         additionalProperties: false,
         description: "The named axis of disagreement (rule 13). 'mixed' must be explained by this.",
         properties: {
-          force_up: { type: "string", description: "The bullish/supportive force, one phrase." },
-          force_down: { type: "string", description: "The bearish/pressuring force, one phrase." },
+          force_up: { type: "string", description: "The bullish/supportive force — SHORT phrase, ≤ ~8 words, plain." },
+          force_down: { type: "string", description: "The bearish/pressuring force — SHORT phrase, ≤ ~8 words, plain." },
           leans: { type: "string", enum: ["up", "down", "balanced"] },
-          why: { type: "string", description: "Which side leads now + what could flip it." },
+          why: { type: "string", description: "One tight clause: which side leads now + what could flip it." },
         },
         required: ["force_up", "force_down", "leans", "why"],
       },
@@ -880,7 +886,7 @@ function hashCorpus(
   // Freshness STATE (not raw age) so a keep-last-good transition (fresh→dated→
   // absent/gap) regenerates the read, without busting the cache every day.
   const fresh = `${exportState(demand).state}:${demandGaps(crop, demand).sort().join("/")}`;
-  const canonical = `${crop}::${usda}::${links}::${dir}::${econ}::${dem}::${mf}::${mac}::${tch}::${seasonalLine}::${fresh}`;
+  const canonical = `${PROMPT_VERSION}::${crop}::${usda}::${links}::${dir}::${econ}::${dem}::${mf}::${mac}::${tch}::${seasonalLine}::${fresh}`;
   return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 

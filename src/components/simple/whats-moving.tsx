@@ -44,12 +44,15 @@ function Factor({ factor }: { factor: OutlookFactorV2 }) {
 function CropStory({ story }: { story: MarketStory }) {
   const o = story.outlook;
   const factors = (o?.factors ?? []).slice(0, 2);
+  // Lead with the crisp pulse (hard ~35-word ceiling, honesty-checked); fall back
+  // to the fuller summary only if the pulse didn't generate.
+  const lead = o?.pulse ?? o?.summary ?? null;
 
   return (
     <div className="space-y-2.5">
       <div className="text-[var(--accent)] text-[11px] font-medium tracking-wide uppercase">{story.label}</div>
-      {o?.summary ? (
-        <p className="text-foreground text-[15px] leading-relaxed">{o.summary}</p>
+      {lead ? (
+        <p className="text-foreground text-[15px] leading-relaxed">{lead}</p>
       ) : (
         <p className="text-text-tertiary text-[15px] leading-relaxed">
           The market read is refreshing — check back shortly.
@@ -73,8 +76,7 @@ export function WhatsMoving({ stories }: { stories: MarketStory[] }) {
       <div className="space-y-1">
         <h2 className="font-serif text-xl font-medium tracking-tight">What&apos;s moving the market</h2>
         <p className="text-text-secondary text-[13px] leading-relaxed">
-          What&apos;s happening out in the world that&apos;s moving corn and beans — from USDA data and the ag news
-          the market&apos;s watching.
+          The real forces behind the price — from USDA data and the news the market watches.
         </p>
       </div>
 
