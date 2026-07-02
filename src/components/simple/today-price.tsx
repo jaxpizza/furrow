@@ -1,5 +1,8 @@
 import { cn } from "@/lib/utils";
 
+/** A factual period-over-period move (NOT a forecast). */
+export type Momentum = { pct: number; direction: "up" | "down" | "flat" };
+
 export type PriceCell = {
   crop: "corn" | "soybean";
   label: string;
@@ -10,6 +13,9 @@ export type PriceCell = {
   contractMonth: string | null;
   isSample: boolean;
   isStale: boolean;
+  /** Real % change over ~7 and ~30 days from price history; null if unavailable. */
+  week: Momentum | null;
+  month: Momentum | null;
 };
 
 const TONE = {
@@ -19,6 +25,24 @@ const TONE = {
 } as const;
 
 const ARROW = { up: "▲", down: "▼", flat: "•" } as const;
+const MOM_ARROW = { up: "↑", down: "↓", flat: "→" } as const;
+
+/** One compact momentum chip: label + arrow + %, colorblind-safe (arrow + color). */
+function MomChip({ label, m }: { label: string; m: Momentum | null }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="text-text-tertiary">{label}</span>
+      {m ? (
+        <span className={TONE[m.direction]}>
+          {MOM_ARROW[m.direction]}
+          {Math.abs(m.pct).toFixed(1)}%
+        </span>
+      ) : (
+        <span className="text-text-tertiary">—</span>
+      )}
+    </span>
+  );
+}
 
 /**
  * TODAY'S PRICE — corn and soybeans side by side, big and glanceable. The cash
@@ -51,6 +75,14 @@ export function TodayPrice({ cells }: { cells: PriceCell[] }) {
               ) : (
                 <span className="text-text-tertiary font-normal">today</span>
               )}
+            </div>
+            {/* Relative momentum — factual recent moves, not a prediction. */}
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-medium">
+              <MomChip label="1W" m={c.week} />
+              <span className="text-text-tertiary" aria-hidden>
+                ·
+              </span>
+              <MomChip label="1M" m={c.month} />
             </div>
             <div className="text-text-tertiary mt-2 text-[11px]">
               {c.isSample

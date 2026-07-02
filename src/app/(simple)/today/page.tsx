@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { SimpleBreakeven, type BeCrop } from "@/components/simple/simple-breakeven";
-import { TodayPrice, type PriceCell } from "@/components/simple/today-price";
+import { TodayPrice, type Momentum, type PriceCell } from "@/components/simple/today-price";
 import { SimpleTrend, type TrendCrop } from "@/components/simple/simple-trend";
 import { WhatsMoving, type MarketStory } from "@/components/simple/whats-moving";
 import { WhereItCouldHead, type HeadRead } from "@/components/simple/where-it-could-head";
@@ -41,6 +41,25 @@ function deltaFor(cash: CashPrice | null, hist: { points: { time: string; value:
     return { change: d.change, pct: d.pct, direction: d.direction };
   }
   return { change: null, pct: null, direction: "flat" };
+}
+
+/** Factual % move over ~N days from real price history — current vs the most
+ *  recent bar at or before N days ago. Returns null if that window isn't covered
+ *  (never a fabricated number). Not a prediction. */
+function pctChange(points: { time: string; value: number }[] | undefined, daysBack: number): Momentum | null {
+  if (!points || points.length < 2) return null;
+  const last = points[points.length - 1];
+  const targetMs = new Date(last.time).getTime() - daysBack * 86_400_000;
+  let past: { time: string; value: number } | null = null;
+  for (let i = points.length - 2; i >= 0; i--) {
+    if (new Date(points[i].time).getTime() <= targetMs) {
+      past = points[i];
+      break;
+    }
+  }
+  if (!past || past.value === 0) return null;
+  const pct = Math.round(((last.value - past.value) / past.value) * 1000) / 10;
+  return { pct, direction: pct > 0.05 ? "up" : pct < -0.05 ? "down" : "flat" };
 }
 
 export default async function TodayPage() {
@@ -100,6 +119,8 @@ export default async function TodayPage() {
       contractMonth: cornCash?.futuresRef?.contractMonth ?? null,
       isSample: cornCash?.source === "sample-basis" || cornHist?.source === "sample",
       isStale: cornCash?.futuresRef?.stale ?? false,
+      week: pctChange(cornHist?.source !== "sample" ? cornHist?.points : undefined, 7),
+      month: pctChange(cornHist?.source !== "sample" ? cornHist?.points : undefined, 30),
     },
     {
       crop: "soybean",
@@ -111,17 +132,19 @@ export default async function TodayPage() {
       contractMonth: soyCash?.futuresRef?.contractMonth ?? null,
       isSample: soyCash?.source === "sample-basis" || soyHist?.source === "sample",
       isStale: soyCash?.futuresRef?.stale ?? false,
+      week: pctChange(soyHist?.source !== "sample" ? soyHist?.points : undefined, 7),
+      month: pctChange(soyHist?.source !== "sample" ? soyHist?.points : undefined, 30),
     },
   ];
 
   const trendCrops: TrendCrop[] = [
-    { crop: "corn", label: CROP_LABEL.corn, points: cornHist?.points ?? [] },
-    { crop: "soybean", label: CROP_LABEL.soybean, points: soyHist?.points ?? [] },
+    { crop: "corn", label: CROP_LABEL.corn, points: cornHist?.points ?? [], tech: cornTech },
+    { crop: "soybean", label: CROP_LABEL.soybean, points: soyHist?.points ?? [], tech: soyTech },
   ];
 
   const headReads: HeadRead[] = [
-    { crop: "corn", label: CROP_LABEL.corn, outlook: cornOut, tech: cornTech },
-    { crop: "soybean", label: CROP_LABEL.soybean, outlook: soyOut, tech: soyTech },
+    { crop: "corn", label: CROP_LABEL.corn, outlook: cornOut },
+    { crop: "soybean", label: CROP_LABEL.soybean, outlook: soyOut },
   ];
 
   const stories: MarketStory[] = [

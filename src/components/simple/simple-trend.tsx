@@ -3,18 +3,50 @@
 import { useState } from "react";
 
 import { PriceChart, type ChartPoint } from "@/components/markets/price-chart";
+import type { TechnicalsBundle } from "@/lib/outlook/technicals-types";
 import { cn } from "@/lib/utils";
 
-export type TrendCrop = { crop: "corn" | "soybean"; label: string; points: ChartPoint[] };
+export type TrendCrop = {
+  crop: "corn" | "soybean";
+  label: string;
+  points: ChartPoint[];
+  tech: TechnicalsBundle | null;
+};
+
+const TREND = {
+  uptrend: { word: "Trending up", arrow: "↗", tone: "text-[var(--pos)]" },
+  downtrend: { word: "Trending down", arrow: "↘", tone: "text-[var(--neg)]" },
+  sideways: { word: "Sideways", arrow: "→", tone: "text-[var(--neutral)]" },
+} as const;
+
+const money = (n: number) => `$${n.toFixed(2)}`;
+
+/** A plain, honest read of the key levels — market structure, not a forecast. */
+function levelsLine(tech: TechnicalsBundle): string | null {
+  const r = tech.resistance?.value ?? null;
+  const s = tech.support?.value ?? null;
+  if (r != null && s != null)
+    return `Resistance ${money(r)} above, support ${money(s)} below — a break above points higher, below points lower.`;
+  if (r != null) return `Resistance ${money(r)} above — a break above points higher.`;
+  if (s != null) return `Support ${money(s)} below — a break below points lower.`;
+  return null;
+}
 
 /**
- * THE TREND — reuses the app's calm amber price chart (with its own range toggles
- * and hover), fronted by a simple Corn / Soybeans switch so the screen only ever
- * shows one chart at a time. "See the trend," nothing more.
+ * THE TREND — the app's calm amber chart with a Corn / Soybeans switch. When live
+ * technicals are available it also conveys DIRECTION honestly: a trend badge, the
+ * key support/resistance levels drawn on the chart, and a plain if/then line. This
+ * is market structure — where price is and the levels that matter — NOT a
+ * predicted future-price line.
  */
 export function SimpleTrend({ crops }: { crops: TrendCrop[] }) {
   const [active, setActive] = useState<"corn" | "soybean">("corn");
   const current = crops.find((c) => c.crop === active) ?? crops[0];
+
+  // Only speak to direction/levels when the technicals are real (never on sample).
+  const tech = current?.tech && !current.tech.basedOnSample ? current.tech : null;
+  const trend = tech ? TREND[tech.trend] : null;
+  const levels = tech ? levelsLine(tech) : null;
 
   return (
     <section aria-label="Price trend" className="space-y-3">
@@ -39,14 +71,26 @@ export function SimpleTrend({ crops }: { crops: TrendCrop[] }) {
         </div>
       </div>
 
-      <div className="border-border bg-bg-surface/40 rounded-2xl border p-3">
+      <div className="border-border bg-bg-surface/40 space-y-2 rounded-2xl border p-3">
+        {trend && (
+          <div className={cn("flex items-center gap-1.5 px-1 text-sm font-semibold", trend.tone)}>
+            <span aria-hidden>{trend.arrow}</span>
+            {trend.word}
+          </div>
+        )}
         {current && current.points.length > 1 ? (
-          <PriceChart points={current.points} height={240} />
+          <PriceChart
+            points={current.points}
+            height={240}
+            support={tech?.support?.value ?? null}
+            resistance={tech?.resistance?.value ?? null}
+          />
         ) : (
           <div className="text-text-tertiary flex h-[240px] items-center justify-center text-sm">
             Price history is refreshing.
           </div>
         )}
+        {levels && <p className="text-text-tertiary px-1 text-[13px] leading-relaxed">{levels}</p>}
       </div>
     </section>
   );

@@ -8,6 +8,7 @@ import {
   createChart,
   LineStyle,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
@@ -30,13 +31,19 @@ const AMBER = "#EFB23E";
 export function PriceChart({
   points,
   height = 300,
+  support = null,
+  resistance = null,
 }: {
   points: ChartPoint[];
   height?: number;
+  /** Optional key levels drawn as labeled dashed lines (simple-mode trend view). */
+  support?: number | null;
+  resistance?: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const linesRef = useRef<IPriceLine[]>([]);
   const [range, setRange] = useState<Range>("6M");
   const [hover, setHover] = useState<{ value: number; time: string } | null>(
     null,
@@ -125,6 +132,32 @@ export function PriceChart({
     );
     chart.timeScale().fitContent();
   }, [points, range]);
+
+  // Optional support/resistance — labeled dashed lines. Recreated when the levels
+  // change (e.g. switching crop), so the markets page (no levels) is unaffected.
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    for (const l of linesRef.current) series.removePriceLine(l);
+    linesRef.current = [];
+    const line = (price: number, title: string, color: string) =>
+      linesRef.current.push(
+        series.createPriceLine({
+          price,
+          color,
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title,
+        }),
+      );
+    if (resistance != null) line(resistance, "Resistance", "#EFB23E");
+    if (support != null) line(support, "Support", "#9BA29E");
+    return () => {
+      for (const l of linesRef.current) series.removePriceLine(l);
+      linesRef.current = [];
+    };
+  }, [support, resistance]);
 
   return (
     <div className="space-y-2">
