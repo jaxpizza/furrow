@@ -54,10 +54,11 @@ export function CreateFarmForm({
       return;
     }
 
-    // Make the new farm active, then land on the dashboard.
+    // Make the new farm active, then land on root — which routes the user to
+    // their mode's front door (new users default to the calm Simple screen).
     setBrowserCookie(ACTIVE_FARM_COOKIE, id);
     toast.success(`${name.trim()} is ready.`);
-    router.push("/dashboard");
+    router.push("/");
     router.refresh();
   }
 
@@ -97,7 +98,7 @@ export function CreateFarmForm({
                 type="button"
                 variant="ghost"
                 className="flex-1"
-                onClick={() => router.push("/dashboard")}
+                onClick={() => router.push("/")}
                 disabled={pending}
               >
                 Cancel
