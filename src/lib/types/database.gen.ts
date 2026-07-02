@@ -1034,18 +1034,21 @@ export type Database = {
       }
       profiles: {
         Row: {
+          app_mode: string
           created_at: string
           full_name: string | null
           id: string
           is_admin: boolean
         }
         Insert: {
+          app_mode?: string
           created_at?: string
           full_name?: string | null
           id: string
           is_admin?: boolean
         }
         Update: {
+          app_mode?: string
           created_at?: string
           full_name?: string | null
           id?: string
