@@ -23,18 +23,23 @@ import { createClient } from "@/lib/supabase/client";
 export function CreateFarmForm({
   userId,
   allowCancel,
+  defaultName = "",
 }: {
   userId: string;
   allowCancel: boolean;
+  /** Prefilled so a new farmer can start in one tap. */
+  defaultName?: string;
 }) {
   const router = useRouter();
+  // First farm = the minimal, one-tap path (default mode is Simple, which needs
+  // almost nothing). Adding a farm later (from the full app) keeps the fuller form.
+  const minimal = !allowCancel;
   const [pending, setPending] = useState(false);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(defaultName);
   const [state, setState] = useState("IL");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!name.trim()) return;
     setPending(true);
 
     // Generate the id client-side so we don't need an INSERT ... RETURNING.
@@ -43,10 +48,11 @@ export function CreateFarmForm({
     // here would fail the farms read policy. Inserting with a known id sidesteps
     // that ordering entirely.
     const id = crypto.randomUUID();
+    const farmName = name.trim() || "My Farm";
     const supabase = createClient();
     const { error } = await supabase
       .from("farms")
-      .insert({ id, name: name.trim(), state, owner_id: userId });
+      .insert({ id, name: farmName, state, owner_id: userId });
 
     if (error) {
       toast.error(error.message ?? "Could not create the farm.");
@@ -57,7 +63,7 @@ export function CreateFarmForm({
     // Make the new farm active, then land on root — which routes the user to
     // their mode's front door (new users default to the calm Simple screen).
     setBrowserCookie(ACTIVE_FARM_COOKIE, id);
-    toast.success(`${name.trim()} is ready.`);
+    toast.success(`${farmName} is ready.`);
     router.push("/");
     router.refresh();
   }
@@ -72,26 +78,31 @@ export function CreateFarmForm({
               id="farm-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Prairie Creek Farms"
+              placeholder="My Farm"
               autoFocus
-              required
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="farm-state">State</Label>
-            <Select value={state} onValueChange={setState}>
-              <SelectTrigger id="farm-state" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {US_STATES.map((s) => (
-                  <SelectItem key={s} value={s} className="tnum">
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
+          {/* State only matters for the fuller app (weather, fields). Keep the
+              first-run path minimal — default to IL and let full mode set it. */}
+          {!minimal && (
+            <div className="space-y-1.5">
+              <Label htmlFor="farm-state">State</Label>
+              <Select value={state} onValueChange={setState}>
+                <SelectTrigger id="farm-state" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {US_STATES.map((s) => (
+                    <SelectItem key={s} value={s} className="tnum">
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="flex gap-2 pt-1">
             {allowCancel && (
               <Button
@@ -106,7 +117,7 @@ export function CreateFarmForm({
             )}
             <Button type="submit" className="flex-1" disabled={pending}>
               {pending && <Loader2 className="size-4 animate-spin" />}
-              Create farm
+              {minimal ? "Show me the market" : "Create farm"}
             </Button>
           </div>
         </form>

@@ -13,14 +13,17 @@ export default async function OnboardingPage({
 }: {
   searchParams: Promise<{ add?: string }>;
 }) {
-  const { user, farms } = await getSessionContext();
+  const { user, profile, farms } = await getSessionContext();
   if (!user) redirect("/sign-in");
 
   const { add } = await searchParams;
-  // Already has farms and not explicitly adding another → straight to dashboard.
-  if (farms.length > 0 && !add) redirect("/dashboard");
+  // Already has farms and not explicitly adding another → root routes by mode.
+  if (farms.length > 0 && !add) redirect("/");
 
   const isFirstFarm = farms.length === 0;
+  // Prefill the farm name so a new farmer can start in a single tap.
+  const first = profile?.full_name?.trim().split(/\s+/)[0];
+  const defaultName = isFirstFarm && first ? `${first}'s Farm` : "";
 
   return (
     <div className="relative flex min-h-dvh flex-col">
@@ -32,15 +35,15 @@ export default async function OnboardingPage({
         <div className="w-full max-w-sm">
           <div className="mb-6 space-y-1.5">
             <h1 className="text-xl font-semibold tracking-tight">
-              {isFirstFarm ? "Set up your first farm" : "Add a farm"}
+              {isFirstFarm ? "Name your farm, then let's look at the market" : "Add a farm"}
             </h1>
             <p className="text-text-secondary text-sm">
               {isFirstFarm
-                ? "A farm is your workspace — fields, markets, and money all live under it. You'll be the owner."
+                ? "That's all we need to get started — you can add your costs later if you want."
                 : "Create another farm workspace. You'll be its owner."}
             </p>
           </div>
-          <CreateFarmForm userId={user.id} allowCancel={!isFirstFarm} />
+          <CreateFarmForm userId={user.id} allowCancel={!isFirstFarm} defaultName={defaultName} />
         </div>
       </main>
     </div>
