@@ -206,7 +206,7 @@ const FEATURES = [
     kicker: "Honest market read",
     title: "A straight read, not a hot take.",
     body: "Every day, a plain-language read on corn and soybeans: what moved, why, and which way the competing forces lean. Sourced to real USDA data and the news the desk actually watches — never a made-up price target.",
-    src: "/screenshots/dashboard-1.png",
+    src: "/screenshots/dashboard-1-v2.png",
     shot: "Furrow dashboard — the plain-language market read for corn and soybeans",
   },
   {
@@ -222,7 +222,7 @@ const FEATURES = [
     kicker: "Your whole position",
     title: "What you've grown, sold, and still have riding.",
     body: "Bushels on hand valued at today's cash, percent sold, and what's still exposed to the market — your operation's position in one glance, tied straight to your break-even.",
-    src: "/screenshots/dashboard-2.png",
+    src: "/screenshots/dashboard-2-v2.png",
     shot: "Furrow dashboard — holdings value, bushels on hand, percent sold, and position vs. break-even",
   },
   {
