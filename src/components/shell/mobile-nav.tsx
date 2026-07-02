@@ -5,11 +5,12 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { LogOut, Menu, X } from "lucide-react";
+import { LayoutList, LogOut, Menu, X } from "lucide-react";
 
 import { FurrowLogo } from "@/components/brand/logo";
 import type { FarmSummary } from "@/lib/farm";
 import { createClient } from "@/lib/supabase/client";
+import { setAppMode } from "@/lib/mode-action";
 import { cn } from "@/lib/utils";
 
 import { FarmSwitcher } from "./farm-switcher";
@@ -56,6 +57,13 @@ export function MobileNav({
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/sign-in");
+    router.refresh();
+  }
+
+  async function switchToSimple() {
+    setOpen(false);
+    await setAppMode("simple").catch(() => {});
+    router.push("/today");
     router.refresh();
   }
 
@@ -144,7 +152,15 @@ export function MobileNav({
                 {SECONDARY_NAV.map(navLink)}
               </nav>
 
-              <div className="border-border/80 border-t p-3">
+              <div className="border-border/80 space-y-0.5 border-t p-3">
+                <button
+                  type="button"
+                  onClick={switchToSimple}
+                  className="text-muted-foreground hover:text-foreground hover:bg-accent/60 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors"
+                >
+                  <LayoutList className="size-4" />
+                  Simple view
+                </button>
                 <button
                   type="button"
                   onClick={signOut}

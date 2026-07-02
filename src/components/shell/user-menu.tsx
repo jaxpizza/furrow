@@ -1,7 +1,8 @@
 "use client";
 
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, UserRound } from "lucide-react";
+import { LayoutList, LogOut, UserRound } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -13,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { createClient } from "@/lib/supabase/client";
+import { setAppMode } from "@/lib/mode-action";
 
 export function UserMenu({
   email,
@@ -22,7 +24,16 @@ export function UserMenu({
   fullName: string | null;
 }) {
   const router = useRouter();
+  const [, startSwitch] = useTransition();
   const initial = (fullName ?? email).charAt(0).toUpperCase();
+
+  function switchToSimple() {
+    startSwitch(async () => {
+      await setAppMode("simple").catch(() => {});
+      router.push("/today");
+      router.refresh();
+    });
+  }
 
   async function signOut() {
     const supabase = createClient();
@@ -48,6 +59,10 @@ export function UserMenu({
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={switchToSimple} className="gap-2">
+          <LayoutList className="size-4" />
+          Simple view
+        </DropdownMenuItem>
         <DropdownMenuItem disabled className="gap-2">
           <UserRound className="size-4" />
           Profile settings
